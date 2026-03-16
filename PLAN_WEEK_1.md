@@ -1,0 +1,192 @@
+# План разработки — Неделя 1 (16–22 марта 2026)
+
+**Цель недели:** Рабочий сквозной поток от загрузки плана БТИ до сбора всех фотографий.
+RAG и финальный анализ — следующая неделя.
+
+---
+
+## Понедельник 17.03 — Инфраструктура
+
+**Supabase**
+- [ ] Создать проект в Supabase
+- [ ] Подключить расширение `pgvector`
+- [ ] Создать таблицы:
+
+```sql
+-- Белый список пользователей
+create table allowed_users (
+  chat_id bigint primary key
+);
+
+-- Сессии диалога
+create table sessions (
+  chat_id        bigint primary key,
+  step           text default 'idle',
+  plan_url       text,
+  rooms_json     jsonb,
+  shots_json     jsonb,
+  shots_status   jsonb,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+```
+
+- [ ] Создать Storage bucket `bti-files` (планы и фотографии)
+- [ ] Добавить свой `chat_id` в `allowed_users` для тестирования
+
+**N8N**
+- [ ] Развернуть N8N self-hosted (Docker Compose на VPS)
+- [ ] Создать Telegram Bot через @BotFather, получить токен
+- [ ] Настроить Webhook: `POST https://<n8n-domain>/webhook/bti-bot`
+- [ ] Создать credentials в N8N: Telegram, Supabase, OpenAI, Google Gemini
+
+**Результат дня:** N8N запущен, Supabase настроен, бот отвечает на `/start`
+
+---
+
+## Вторник 18.03 — Каркас воркфлоу + Whitelist
+
+**Основной workflow (скелет)**
+
+```
+Telegram Webhook Trigger
+  → Supabase: SELECT * FROM allowed_users WHERE chat_id = $chat_id
+  → IF найден → продолжить
+  → ELSE → Telegram: "Доступ запрещён" → Stop
+  → Switch по типу сообщения:
+      document / photo  → ветка файлов
+      text "/start"     → приветствие + upsert sessions
+      text              → ветка текстовых команд
+      callback_query    → ветка inline-кнопок
+  → Supabase: SELECT step FROM sessions WHERE chat_id = $chat_id
+  → Switch по step → роутинг в нужный блок
+```
+
+- [ ] Создать Webhook Trigger
+- [ ] Узел проверки whitelist (Supabase node → IF)
+- [ ] Switch по типу сообщения (4 ветки)
+- [ ] Ветка `/start`: upsert в `sessions` (`step = 'awaiting_plan'`), отправить приветственное сообщение с инструкцией
+- [ ] Switch по `step` (роутинг — пока пустые ветки)
+
+**Результат дня:** Бот принимает сообщения, проверяет whitelist, правильно роутит по типу и шагу
+
+---
+
+## Среда 19.03 — Шаг 1: Приём плана БТИ
+
+**Ветка `document/photo` при `step = 'awaiting_plan'`**
+
+- [ ] Определить тип входящего файла: `photo` vs `document`
+  - `photo` — Telegram даёт сжатое изображение (предупредить пользователя, принять)
+  - `document` — принять как есть; если `mime_type = application/pdf` — флаг конвертации
+- [ ] Скачать файл через Telegram API (`getFile` → download URL)
+- [ ] Загрузить в Supabase Storage (`bti-files/plans/{chat_id}/plan.png`)
+- [ ] Если PDF: конвертировать в PNG через Code Node (base64 → pdf2image через HTTP к Python-сервису) или временно — попросить пользователя присылать фото
+- [ ] Обновить `sessions`: `step = 'plan_received'`, `plan_url = <storage_url>`
+- [ ] Отправить пользователю: "План получен, начинаю анализ..."
+
+> На этом этапе Python-сервис ещё не готов — PDF-конвертацию можно пропустить,
+> принимать только изображения. Вернуться к PDF на следующей неделе.
+
+**Результат дня:** Бот принимает фото плана, сохраняет в Storage, меняет шаг сессии
+
+---
+
+## Четверг 20.03 — Шаги 2–3: Gemini анализ + точки съёмки
+
+**Шаг 2 — Анализ плана и сегментация комнат**
+
+- [ ] Передать изображение плана в Gemini 2.0 Flash с промптом сегментации
+- [ ] Промпт возвращает JSON:
+```json
+{
+  "rooms": [
+    { "id": "room_1", "name": "Жилая комната 1",
+      "region_percent": { "x1": 0.05, "y1": 0.10, "x2": 0.45, "y2": 0.55 } }
+  ]
+}
+```
+- [ ] Сохранить `rooms_json` в `sessions`
+- [ ] Отправить пользователю: список распознанных комнат текстом (без аннотированного изображения — Python-сервис на следующей неделе)
+
+**Шаг 3 — Генерация точек съёмки**
+
+- [ ] Второй вызов Gemini 2.0 Flash — передать план + `rooms_json`, запросить точки съёмки
+- [ ] Промпт возвращает JSON:
+```json
+{
+  "shots": [
+    { "shot_id": "room_1_shot_1", "room_id": "room_1",
+      "position": "северо-западный угол", "direction": "на юго-восток",
+      "instruction": "Встаньте в угол, снимайте всю комнату целиком" }
+  ]
+}
+```
+- [ ] Сохранить `shots_json` в `sessions`
+- [ ] Инициализировать `shots_status`: `{ "room_1_shot_1": "pending", ... }`
+- [ ] Обновить `step = 'collecting_photos'`
+- [ ] Отправить первую инструкцию по съёмке (первая точка со статусом `pending`)
+- [ ] Обновить статус первой точки: `pending → requested`
+
+**Результат дня:** Бот анализирует план, показывает комнаты, запрашивает первое фото
+
+---
+
+## Пятница 21.03 — Шаг 4: Сбор фотографий (без LLM)
+
+**Ветка `document/photo` при `step = 'collecting_photos'`**
+
+- [ ] Найти текущую точку со статусом `requested` из `shots_status`
+- [ ] Скачать фото, загрузить в Storage: `bti-files/photos/{chat_id}/{shot_id}.jpg`
+- [ ] Обновить статус точки: `requested → received`
+- [ ] Проверить `shots_status`: есть ли ещё `pending`?
+  - **Да** → взять следующую `pending` точку → отправить инструкцию → статус `pending → requested`
+  - **Нет** → обновить `step = 'photos_complete'` → отправить "Все фото получены, начинаю анализ..."
+- [ ] Добавить возможность повтора: если пользователь отправляет фото повторно для той же точки — перезаписать файл в Storage
+
+**Дополнительно**
+- [ ] Обработать крайний случай: пользователь прислал фото вне очереди (не `document`, а `photo`) — принять с предупреждением о сжатии
+
+**Результат дня:** Полный сквозной поток: план → анализ → инструкции → сбор всех фото
+
+---
+
+## Выходные 22–23.03 — RAG: подготовка базы нормативов
+
+**Обработка PDF (разово, вручную или скриптом)**
+
+- [ ] Извлечь текст из 3 PDF:
+  - `Чек лист нормы перепланировок.pdf`
+  - `Katalogtipovihresheniipereplanirovokkvartir30122022.pdf`
+  - `Чек_лист_допустимые_размеры_помещений_1.pdf`
+- [ ] Нарезать по смысловым блокам (статья / пункт / раздел, не по страницам)
+- [ ] Создать таблицу в Supabase:
+```sql
+create table embeddings (
+  id      bigserial primary key,
+  source  text,
+  chunk   text,
+  embedding vector(1536)
+);
+```
+- [ ] Векторизовать через `text-embedding-3-small` (OpenAI API)
+- [ ] Загрузить embeddings в Supabase
+
+> Можно выполнить скриптом на Python или через N8N Code Node — по удобству.
+
+**Результат:** RAG-база готова для подключения на следующей неделе (Шаг 5 — GPT-4o анализ)
+
+---
+
+## Итог недели
+
+| День | Результат |
+|------|-----------|
+| Пн | N8N + Supabase развёрнуты, бот отвечает |
+| Вт | Whitelist, роутинг по типу сообщения и шагу сессии |
+| Ср | Приём и сохранение плана БТИ |
+| Чт | Gemini анализирует план, генерирует точки съёмки |
+| Пт | Полный цикл сбора фотографий без LLM |
+| Вых | RAG-база нормативов готова |
+
+**На следующей неделе:** GPT-4o финальный анализ + RAG + Python-сервис для аннотации плана
