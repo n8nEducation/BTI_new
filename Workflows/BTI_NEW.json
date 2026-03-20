@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-20T07:56:07.952Z",
+  "updatedAt": "2026-03-20T08:22:54.849Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
@@ -1533,6 +1533,100 @@
           "name": "BTI_BOT"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a descriptive query for RAG search\n// In Phase 2 (Tue 24.03) this will use rooms_json from session\nconst chatId = $('Code - Process Shot').item.json.chatId;\n\nconst queryText = 'перепланировка квартиры: снос стен, объединение комнат, изменение проёмов, перенос санузла, изменение мокрых зон, несущие конструкции, допустимые размеры помещений';\n\nreturn [{ json: { chatId: chatId, queryText: queryText } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        1550
+      ],
+      "id": "rag-prep-query-node-001",
+      "name": "Code - Prepare RAG Query"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer OPENAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\"input\": $json.queryText, \"model\": \"text-embedding-3-small\"}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2400,
+        1550
+      ],
+      "id": "rag-embed-query-node-001",
+      "name": "HTTP Request - Embed Query"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/rpc/match_embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "apikey",
+              "value": "SUPABASE_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({\"query_embedding\": $json.data[0].embedding, \"match_count\": 5}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2640,
+        1550
+      ],
+      "id": "rag-search-node-001",
+      "name": "HTTP Request - RAG Search"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fragments = $input.all().map(item => item.json);\n// fragments is array of {id, source, chunk, similarity}\n\nif (!fragments || fragments.length === 0) {\n  return [{ json: { ragContext: '', fragmentCount: 0 } }];\n}\n\nconst ragContext = fragments.map(f => f.chunk).join('\\n---\\n');\nconst fragmentCount = fragments.length;\n\n// Log for debugging\nconsole.log('RAG: retrieved ' + fragmentCount + ' fragments');\nfragments.forEach((f, i) => {\n  console.log('  [' + i + '] source=' + f.source + ', similarity=' + (f.similarity || 0).toFixed(3));\n});\n\nreturn [{ json: { ragContext: ragContext, fragmentCount: fragmentCount } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        1550
+      ],
+      "id": "rag-format-results-node-001",
+      "name": "Code - Format RAG Results"
     }
   ],
   "connections": {
@@ -2078,6 +2172,50 @@
           }
         ]
       ]
+    },
+    "Code - Prepare RAG Query": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Embed Query": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - RAG Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - RAG Search": {
+      "main": [
+        [
+          {
+            "node": "Code - Format RAG Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - All Photos Done": {
+      "main": [
+        [
+          {
+            "node": "Code - Prepare RAG Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -2090,9 +2228,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
-  "activeVersionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
-  "versionCounter": 73,
+  "versionId": "83f861f7-c750-451a-8207-a51026e4f03c",
+  "activeVersionId": "83f861f7-c750-451a-8207-a51026e4f03c",
+  "versionCounter": 78,
   "triggerCount": 1,
   "shared": [
     {
@@ -2146,9 +2284,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-03-20T07:56:07.956Z",
-    "createdAt": "2026-03-20T07:56:07.956Z",
-    "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
+    "updatedAt": "2026-03-20T08:22:54.852Z",
+    "createdAt": "2026-03-20T08:22:54.852Z",
+    "versionId": "83f861f7-c750-451a-8207-a51026e4f03c",
     "workflowId": "305RmoqLIGnuYonX",
     "nodes": [
       {
@@ -3677,6 +3815,100 @@
             "name": "BTI_BOT"
           }
         }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Build a descriptive query for RAG search\n// In Phase 2 (Tue 24.03) this will use rooms_json from session\nconst chatId = $('Code - Process Shot').item.json.chatId;\n\nconst queryText = 'перепланировка квартиры: снос стен, объединение комнат, изменение проёмов, перенос санузла, изменение мокрых зон, несущие конструкции, допустимые размеры помещений';\n\nreturn [{ json: { chatId: chatId, queryText: queryText } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2160,
+          1550
+        ],
+        "id": "rag-prep-query-node-001",
+        "name": "Code - Prepare RAG Query"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.openai.com/v1/embeddings",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer OPENAI_API_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({\"input\": $json.queryText, \"model\": \"text-embedding-3-small\"}) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          2400,
+          1550
+        ],
+        "id": "rag-embed-query-node-001",
+        "name": "HTTP Request - Embed Query"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/rpc/match_embeddings",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "apikey",
+                "value": "SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({\"query_embedding\": $json.data[0].embedding, \"match_count\": 5}) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          2640,
+          1550
+        ],
+        "id": "rag-search-node-001",
+        "name": "HTTP Request - RAG Search"
+      },
+      {
+        "parameters": {
+          "jsCode": "const fragments = $input.all().map(item => item.json);\n// fragments is array of {id, source, chunk, similarity}\n\nif (!fragments || fragments.length === 0) {\n  return [{ json: { ragContext: '', fragmentCount: 0 } }];\n}\n\nconst ragContext = fragments.map(f => f.chunk).join('\\n---\\n');\nconst fragmentCount = fragments.length;\n\n// Log for debugging\nconsole.log('RAG: retrieved ' + fragmentCount + ' fragments');\nfragments.forEach((f, i) => {\n  console.log('  [' + i + '] source=' + f.source + ', similarity=' + (f.similarity || 0).toFixed(3));\n});\n\nreturn [{ json: { ragContext: ragContext, fragmentCount: fragmentCount } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2880,
+          1550
+        ],
+        "id": "rag-format-results-node-001",
+        "name": "Code - Format RAG Results"
       }
     ],
     "connections": {
@@ -4222,6 +4454,50 @@
             }
           ]
         ]
+      },
+      "Code - Prepare RAG Query": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Embed Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Embed Query": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - RAG Search",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - RAG Search": {
+        "main": [
+          [
+            {
+              "node": "Code - Format RAG Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Telegram - All Photos Done": {
+        "main": [
+          [
+            {
+              "node": "Code - Prepare RAG Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Admin Admin",
@@ -4230,26 +4506,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-20T07:56:44.533Z",
-        "id": 177,
+        "createdAt": "2026-03-20T08:22:59.957Z",
+        "id": 179,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
+        "versionId": "83f861f7-c750-451a-8207-a51026e4f03c",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       },
       {
-        "createdAt": "2026-03-20T07:56:24.917Z",
-        "id": 176,
+        "createdAt": "2026-03-20T08:23:15.339Z",
+        "id": 180,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
-        "event": "activated",
-        "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
-      },
-      {
-        "createdAt": "2026-03-20T07:57:06.435Z",
-        "id": 178,
-        "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
+        "versionId": "83f861f7-c750-451a-8207-a51026e4f03c",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       }
