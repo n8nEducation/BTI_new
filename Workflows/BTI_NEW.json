@@ -995,7 +995,7 @@
     {
       "parameters": {
         "resource": "file",
-        "fileId": "={{ $('Telegram Trigger').item?.json?.message?.document?.file_id || $('Telegram Trigger').item?.json?.message?.photo?.slice(-1)[0]?.file_id }}",
+        "fileId": "={{ $('Telegram Trigger').item.json.message.document ? $('Telegram Trigger').item.json.message.document.file_id : $('Telegram Trigger').item.json.message.photo[$('Telegram Trigger').item.json.message.photo.length - 1].file_id }}",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.telegram",
