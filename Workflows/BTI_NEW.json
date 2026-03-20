@@ -927,7 +927,7 @@
             {
               "keyName": "chat_id",
               "condition": "eq",
-              "keyValue": "={{ $json.result.chat.id }}"
+              "keyValue": "={{ $json.chatId }}"
             }
           ]
         },
