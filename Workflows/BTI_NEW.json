@@ -882,7 +882,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Request').first().json.chatId;\n\nlet parsed;\ntry {\n  const text = resp.choices[0].message.content;\n  parsed = JSON.parse(text);\n} catch(e) {\n  throw new Error('Ошибка разбора ответа GPT: ' + e.message);\n}\n\nconst rooms = parsed.rooms || [];\nconst shots = parsed.shots || [];\n\nconst shotsStatus = {};\nshots.forEach(s => { shotsStatus[s.shot_id] = 'pending'; });\n\nconst firstShot = shots[0];\nif (!firstShot) throw new Error('GPT не вернул точки съёмки');\nshotsStatus[firstShot.shot_id] = 'requested';\n\nconst roomsList = rooms.map(r => '• ' + r.name).join('\\n');\nconst roomsText = '*План проанализирован!*\\nОбнаруженные помещения:\\n' + roomsList + '\\nВсего точек съёмки: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '📷 *Фото 1 из ' + total + '*\\n🏠 ' + firstShot.room_name + '\\n📍 Позиция: ' + firstShot.position + '\\n➡️ Направление: ' + firstShot.direction + '\\n' + firstShot.instruction + '\\n_Отправьте фото как документ/файл — это сохраняет качество_';\n\nreturn [{\n  json: {\n    chatId,\n    rooms_json:        rooms,\n    shots_json:        shots,\n    shots_status:      shotsStatus,\n    rooms_text:        roomsText,\n    first_instruction: firstMsg,\n    total_shots:       total\n  }\n}];"
+        "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Request').first().json.chatId;\n\nlet parsed;\ntry {\n  const text = resp.choices[0].message.content;\n  parsed = JSON.parse(text);\n} catch(e) {\n  throw new Error('Ошибка разбора ответа GPT: ' + e.message);\n}\n\nconst rooms = parsed.rooms || [];\nconst shots = parsed.shots || [];\n\nconst shotsStatus = {};\nshots.forEach(s => { shotsStatus[s.shot_id] = 'pending'; });\n\nconst firstShot = shots[0];\nif (!firstShot) throw new Error('GPT не вернул точки съёмки');\nshotsStatus[firstShot.shot_id] = 'requested';\n\n// HTML-escape dynamic content from LLM to avoid Telegram parse errors\nfunction h(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\n\nconst roomsList = rooms.map(r => '• ' + h(r.name)).join('\\n');\nconst roomsText = '<b>План проанализирован!</b>\\nОбнаруженные помещения:\\n' + roomsList\n  + '\\nВсего точек съёмки: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '📷 <b>Фото 1 из ' + total + '</b>\\n'\n  + '🏠 ' + h(firstShot.room_name) + '\\n'\n  + '📍 Позиция: ' + h(firstShot.position) + '\\n'\n  + '➡️ Направление: ' + h(firstShot.direction) + '\\n'\n  + h(firstShot.instruction) + '\\n'\n  + '<i>Отправьте фото как документ/файл — это сохраняет качество</i>';\n\nreturn [{\n  json: {\n    chatId,\n    rooms_json:        rooms,\n    shots_json:        shots,\n    shots_status:      shotsStatus,\n    rooms_text:        roomsText,\n    first_instruction: firstMsg,\n    total_shots:       total\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -899,7 +899,7 @@
         "text": "={{ $json.rooms_text }}",
         "additionalFields": {
           "appendAttribution": false,
-          "parse_mode": "Markdown"
+          "parse_mode": "HTML"
         }
       },
       "type": "n8n-nodes-base.telegram",
@@ -973,7 +973,7 @@
         "text": "={{ $('Code - Parse Gemini').item.json.first_instruction }}",
         "additionalFields": {
           "appendAttribution": false,
-          "parse_mode": "Markdown"
+          "parse_mode": "HTML"
         }
       },
       "type": "n8n-nodes-base.telegram",
@@ -1016,7 +1016,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const session = $('Get a row1').first().json;\nconst chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst requestedShotId = Object.keys(shotsStatus).find(id => shotsStatus[id] === 'requested');\nif (!requestedShotId) {\n  throw new Error('Нет активной точки съёмки. Введите /start для перезапуска.');\n}\n\nconst updatedStatus = { ...shotsStatus };\nupdatedStatus[requestedShotId] = 'received';\n\nconst nextShot = shots.find(s => updatedStatus[s.shot_id] === 'pending');\nconst allDone  = !nextShot;\nlet nextStatus = { ...updatedStatus };\nlet nextMessage = '';\n\nif (!allDone) {\n  nextStatus[nextShot.shot_id] = 'requested';\n  const total     = shots.length;\n  const shotIndex = shots.findIndex(s => s.shot_id === nextShot.shot_id) + 1;\n  nextMessage = '📷 *Фото ' + shotIndex + ' из ' + total + '*\\n\\n🏠 ' + nextShot.room_name + '\\n📍 Позиция: ' + nextShot.position + '\\n➡️ Направление: ' + nextShot.direction + '\\n\\n' + nextShot.instruction + '\\n\\n_Отправьте фото как документ/файл — это сохраняет качество_';\n} else {\n  nextMessage = '✅ Все фотографии получены!\\n\\nНачинаю финальный анализ перепланировки. Это займёт 1-2 минуты...';\n}\n\n// Pass binary through so HTTP Request - Upload Photo can upload the file\nreturn [{\n  json: {\n    chatId,\n    current_shot_id: requestedShotId,\n    shots_status:    nextStatus,\n    all_done:        allDone,\n    next_message:    nextMessage,\n    upload_path:     'photos/' + chatId + '/' + requestedShotId + '.jpg'\n  },\n  binary: items[0].binary\n}];"
+        "jsCode": "const session = $('Get a row1').first().json;\nconst chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst requestedShotId = Object.keys(shotsStatus).find(id => shotsStatus[id] === 'requested');\nif (!requestedShotId) {\n  throw new Error('Нет активной точки съёмки. Введите /start для перезапуска.');\n}\n\nconst updatedStatus = { ...shotsStatus };\nupdatedStatus[requestedShotId] = 'received';\n\nconst nextShot = shots.find(s => updatedStatus[s.shot_id] === 'pending');\nconst allDone  = !nextShot;\nlet nextStatus = { ...updatedStatus };\nlet nextMessage = '';\n\n// HTML-escape dynamic content from LLM\nfunction h(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\n\nif (!allDone) {\n  nextStatus[nextShot.shot_id] = 'requested';\n  const total     = shots.length;\n  const shotIndex = shots.findIndex(s => s.shot_id === nextShot.shot_id) + 1;\n  nextMessage = '📷 <b>Фото ' + shotIndex + ' из ' + total + '</b>\\n\\n'\n    + '🏠 ' + h(nextShot.room_name) + '\\n'\n    + '📍 Позиция: ' + h(nextShot.position) + '\\n'\n    + '➡️ Направление: ' + h(nextShot.direction) + '\\n\\n'\n    + h(nextShot.instruction) + '\\n\\n'\n    + '<i>Отправьте фото как документ/файл — это сохраняет качество</i>';\n} else {\n  nextMessage = '✅ Все фотографии получены!\\n\\nНачинаю финальный анализ перепланировки. Это займёт 1-2 минуты...';\n}\n\nreturn [{\n  json: {\n    chatId,\n    current_shot_id: requestedShotId,\n    shots_status:    nextStatus,\n    all_done:        allDone,\n    next_message:    nextMessage,\n    upload_path:     'photos/' + chatId + '/' + requestedShotId + '.jpg'\n  },\n  binary: items[0].binary\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1196,7 +1196,7 @@
         "text": "={{ $('Code - Process Shot').item.json.next_message }}",
         "additionalFields": {
           "appendAttribution": false,
-          "parse_mode": "Markdown"
+          "parse_mode": "HTML"
         }
       },
       "type": "n8n-nodes-base.telegram",
