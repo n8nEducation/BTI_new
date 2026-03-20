@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-20T08:22:54.849Z",
+  "updatedAt": "2026-03-20T08:35:11.086Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
@@ -499,6 +499,30 @@
               },
               "renameOutput": true,
               "outputKey": "collecting_photos"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.step }}",
+                    "rightValue": "=photos_complete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "pc-rule-switch1-0001"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "photos_complete"
             }
           ]
         },
@@ -1627,6 +1651,241 @@
       ],
       "id": "rag-format-results-node-001",
       "name": "Code - Format RAG Results"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        610
+      ],
+      "id": "get-text-session-node-001",
+      "name": "Get a row - Text",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "G3gtUOBUeFqG3cuE",
+          "name": "DB_BTI_BOT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "text-pc-if-cond-001",
+              "leftValue": "={{ $json.step }}",
+              "rightValue": "photos_complete",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -200,
+        610
+      ],
+      "id": "if-text-step-pc-node-001",
+      "name": "If - Text Step Photos Complete"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Пожалуйста, подождите. Анализ фотографий выполняется. Это займёт 1–2 минуты.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        16,
+        510
+      ],
+      "id": "telegram-analysis-progress-text-001",
+      "name": "Telegram - Analysis In Progress Text",
+      "credentials": {
+        "telegramApi": {
+          "id": "xojHoW6Kk0xyayrX",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Анализ выполняется, пожалуйста, подождите. Отправка новых файлов невозможна во время анализа.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        352,
+        1030
+      ],
+      "id": "telegram-analysis-progress-doc-001",
+      "name": "Telegram - Analysis In Progress Doc",
+      "credentials": {
+        "telegramApi": {
+          "id": "xojHoW6Kk0xyayrX",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "keyValue": "={{ $('Code - Prepare RAG Query').item.json.chatId }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3120,
+        1550
+      ],
+      "id": "get-analysis-session-node-001",
+      "name": "Supabase - Get Analysis Session",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "G3gtUOBUeFqG3cuE",
+          "name": "DB_BTI_BOT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "var chatId = $('Code - Prepare RAG Query').item.json.chatId;\nvar ragContext = $('Code - Format RAG Results').item.json.ragContext || '';\nvar session = $('Supabase - Get Analysis Session').item.json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json || [];\nvar shotsStatus = session.shots_status || {};\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\n// Build photo URLs for received shots (preserving order from shots_json)\nvar photoItems = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    photoItems.push(SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg');\n  }\n}\n\nvar systemPrompt = 'Ты - эксперт по проверке перепланировок квартир в России. '+ 'Анализируй план БТИ и фотографии, определяй отклонения от плана. '+ 'Отвечай только на русском языке. '+ 'Всегда возвращай ответ строго в формате JSON без markdown-обертки.';\n\nvar userText = 'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n'+ 'Задание: Проанализируй план БТИ (первое изображение) и фотографии комнат.\\n\\n'+ 'Определи наличие перепланировок, которые отличаются от плана БТИ.\\n'+ 'Классифицируй каждое изменение по нормативам.\\n\\n'+ 'Верни JSON строго в формате:\\n'+ '{\"confidence\": <0-1>, \"changes\": [{\"room_id\": \"...\", \"type\": \"...\", \"description\": \"...\", \"classification\": \"legal|requires_approval|illegal\", \"recommendation\": \"...\"}], \"summary\": \"...\"}\\n\\n'+ 'Классификации: legal - изменений нет или разрешено, requires_approval - требует согласования, illegal - незаконно (несущие стены, мокрые зоны, газ).\\n'+ 'Если перепланировок нет - верни пустой массив changes, confidence близкий к 1.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < photoItems.length; j++) {\n  contentArray.push({ type: 'image_url', image_url: { url: photoItems[j], detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: photoItems.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        1550
+      ],
+      "id": "build-gpt4o-payload-node-001",
+      "name": "Code - Build GPT4o Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer OPENAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3600,
+        1550
+      ],
+      "id": "http-gpt4o-node-001",
+      "name": "HTTP Request - GPT4o"
+    },
+    {
+      "parameters": {
+        "jsCode": "var chatId = $('Code - Build GPT4o Payload').item.json.chatId;\nvar responseContent = '';\ntry {\n  responseContent = $json.choices[0].message.content;\n} catch(e) {\n  responseContent = JSON.stringify($json);\n}\n\nvar analysisResult;\ntry {\n  analysisResult = JSON.parse(responseContent);\n} catch(e) {\n  analysisResult = {\n    confidence: 0,\n    changes: [],\n    summary: 'Ошибка парсинга ответа GPT-4o: ' + responseContent.substring(0, 200)\n  };\n}\n\n// Normalize fields\nif (!analysisResult.changes) { analysisResult.changes = []; }\nif (typeof analysisResult.confidence === 'undefined') { analysisResult.confidence = 0.5; }\nif (!analysisResult.summary) { analysisResult.summary = ''; }\n\nreturn [{ json: { chatId: chatId, analysis_result: analysisResult } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3840,
+        1550
+      ],
+      "id": "parse-gpt4o-node-001",
+      "name": "Code - Parse GPT4o Response"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $json.chatId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "apikey",
+              "value": "SUPABASE_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ analysis_result: $json.analysis_result, step: 'analysis_complete', updated_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        4080,
+        1550
+      ],
+      "id": "save-analysis-result-node-001",
+      "name": "HTTP Request - Save Analysis Result"
     }
   ],
   "connections": {
@@ -1659,7 +1918,7 @@
         ],
         [
           {
-            "node": "Send a text message4",
+            "node": "Get a row - Text",
             "type": "main",
             "index": 0
           }
@@ -1776,6 +2035,13 @@
         [
           {
             "node": "If - Is Photo Shot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram - Analysis In Progress Doc",
             "type": "main",
             "index": 0
           }
@@ -2216,6 +2482,90 @@
           }
         ]
       ]
+    },
+    "Get a row - Text": {
+      "main": [
+        [
+          {
+            "node": "If - Text Step Photos Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If - Text Step Photos Complete": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Analysis In Progress Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Format RAG Results": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Get Analysis Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Get Analysis Session": {
+      "main": [
+        [
+          {
+            "node": "Code - Build GPT4o Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build GPT4o Payload": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - GPT4o",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - GPT4o": {
+      "main": [
+        [
+          {
+            "node": "Code - Parse GPT4o Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Parse GPT4o Response": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Save Analysis Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -2228,9 +2578,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "83f861f7-c750-451a-8207-a51026e4f03c",
-  "activeVersionId": "83f861f7-c750-451a-8207-a51026e4f03c",
-  "versionCounter": 78,
+  "versionId": "df785e9a-cae9-4af0-af16-974d42f81756",
+  "activeVersionId": "df785e9a-cae9-4af0-af16-974d42f81756",
+  "versionCounter": 83,
   "triggerCount": 1,
   "shared": [
     {
@@ -2284,9 +2634,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-03-20T08:22:54.852Z",
-    "createdAt": "2026-03-20T08:22:54.852Z",
-    "versionId": "83f861f7-c750-451a-8207-a51026e4f03c",
+    "updatedAt": "2026-03-20T08:35:11.089Z",
+    "createdAt": "2026-03-20T08:35:11.089Z",
+    "versionId": "df785e9a-cae9-4af0-af16-974d42f81756",
     "workflowId": "305RmoqLIGnuYonX",
     "nodes": [
       {
@@ -2781,6 +3131,30 @@
                 },
                 "renameOutput": true,
                 "outputKey": "collecting_photos"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.step }}",
+                      "rightValue": "=photos_complete",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "pc-rule-switch1-0001"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "photos_complete"
               }
             ]
           },
@@ -3909,6 +4283,241 @@
         ],
         "id": "rag-format-results-node-001",
         "name": "Code - Format RAG Results"
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -448,
+          610
+        ],
+        "id": "get-text-session-node-001",
+        "name": "Get a row - Text",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "text-pc-if-cond-001",
+                "leftValue": "={{ $json.step }}",
+                "rightValue": "photos_complete",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -200,
+          610
+        ],
+        "id": "if-text-step-pc-node-001",
+        "name": "If - Text Step Photos Complete"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "Пожалуйста, подождите. Анализ фотографий выполняется. Это займёт 1–2 минуты.",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          16,
+          510
+        ],
+        "id": "telegram-analysis-progress-text-001",
+        "name": "Telegram - Analysis In Progress Text",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "Анализ выполняется, пожалуйста, подождите. Отправка новых файлов невозможна во время анализа.",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          352,
+          1030
+        ],
+        "id": "telegram-analysis-progress-doc-001",
+        "name": "Telegram - Analysis In Progress Doc",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "keyValue": "={{ $('Code - Prepare RAG Query').item.json.chatId }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          3120,
+          1550
+        ],
+        "id": "get-analysis-session-node-001",
+        "name": "Supabase - Get Analysis Session",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "var chatId = $('Code - Prepare RAG Query').item.json.chatId;\nvar ragContext = $('Code - Format RAG Results').item.json.ragContext || '';\nvar session = $('Supabase - Get Analysis Session').item.json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json || [];\nvar shotsStatus = session.shots_status || {};\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\n// Build photo URLs for received shots (preserving order from shots_json)\nvar photoItems = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    photoItems.push(SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg');\n  }\n}\n\nvar systemPrompt = 'Ты - эксперт по проверке перепланировок квартир в России. '+ 'Анализируй план БТИ и фотографии, определяй отклонения от плана. '+ 'Отвечай только на русском языке. '+ 'Всегда возвращай ответ строго в формате JSON без markdown-обертки.';\n\nvar userText = 'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n'+ 'Задание: Проанализируй план БТИ (первое изображение) и фотографии комнат.\\n\\n'+ 'Определи наличие перепланировок, которые отличаются от плана БТИ.\\n'+ 'Классифицируй каждое изменение по нормативам.\\n\\n'+ 'Верни JSON строго в формате:\\n'+ '{\"confidence\": <0-1>, \"changes\": [{\"room_id\": \"...\", \"type\": \"...\", \"description\": \"...\", \"classification\": \"legal|requires_approval|illegal\", \"recommendation\": \"...\"}], \"summary\": \"...\"}\\n\\n'+ 'Классификации: legal - изменений нет или разрешено, requires_approval - требует согласования, illegal - незаконно (несущие стены, мокрые зоны, газ).\\n'+ 'Если перепланировок нет - верни пустой массив changes, confidence близкий к 1.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < photoItems.length; j++) {\n  contentArray.push({ type: 'image_url', image_url: { url: photoItems[j], detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: photoItems.length } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3360,
+          1550
+        ],
+        "id": "build-gpt4o-payload-node-001",
+        "name": "Code - Build GPT4o Payload"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.openai.com/v1/chat/completions",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer OPENAI_API_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.body }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          3600,
+          1550
+        ],
+        "id": "http-gpt4o-node-001",
+        "name": "HTTP Request - GPT4o"
+      },
+      {
+        "parameters": {
+          "jsCode": "var chatId = $('Code - Build GPT4o Payload').item.json.chatId;\nvar responseContent = '';\ntry {\n  responseContent = $json.choices[0].message.content;\n} catch(e) {\n  responseContent = JSON.stringify($json);\n}\n\nvar analysisResult;\ntry {\n  analysisResult = JSON.parse(responseContent);\n} catch(e) {\n  analysisResult = {\n    confidence: 0,\n    changes: [],\n    summary: 'Ошибка парсинга ответа GPT-4o: ' + responseContent.substring(0, 200)\n  };\n}\n\n// Normalize fields\nif (!analysisResult.changes) { analysisResult.changes = []; }\nif (typeof analysisResult.confidence === 'undefined') { analysisResult.confidence = 0.5; }\nif (!analysisResult.summary) { analysisResult.summary = ''; }\n\nreturn [{ json: { chatId: chatId, analysis_result: analysisResult } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3840,
+          1550
+        ],
+        "id": "parse-gpt4o-node-001",
+        "name": "Code - Parse GPT4o Response"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $json.chatId }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "apikey",
+                "value": "SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ analysis_result: $json.analysis_result, step: 'analysis_complete', updated_at: new Date().toISOString() }) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          4080,
+          1550
+        ],
+        "id": "save-analysis-result-node-001",
+        "name": "HTTP Request - Save Analysis Result"
       }
     ],
     "connections": {
@@ -3941,7 +4550,7 @@
           ],
           [
             {
-              "node": "Send a text message4",
+              "node": "Get a row - Text",
               "type": "main",
               "index": 0
             }
@@ -4058,6 +4667,13 @@
           [
             {
               "node": "If - Is Photo Shot",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Telegram - Analysis In Progress Doc",
               "type": "main",
               "index": 0
             }
@@ -4498,6 +5114,90 @@
             }
           ]
         ]
+      },
+      "Get a row - Text": {
+        "main": [
+          [
+            {
+              "node": "If - Text Step Photos Complete",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If - Text Step Photos Complete": {
+        "main": [
+          [
+            {
+              "node": "Telegram - Analysis In Progress Text",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Send a text message4",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Format RAG Results": {
+        "main": [
+          [
+            {
+              "node": "Supabase - Get Analysis Session",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase - Get Analysis Session": {
+        "main": [
+          [
+            {
+              "node": "Code - Build GPT4o Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Build GPT4o Payload": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - GPT4o",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - GPT4o": {
+        "main": [
+          [
+            {
+              "node": "Code - Parse GPT4o Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Parse GPT4o Response": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Save Analysis Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Admin Admin",
@@ -4506,18 +5206,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-20T08:22:59.957Z",
-        "id": 179,
+        "createdAt": "2026-03-20T08:35:16.972Z",
+        "id": 181,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "83f861f7-c750-451a-8207-a51026e4f03c",
+        "versionId": "df785e9a-cae9-4af0-af16-974d42f81756",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       },
       {
-        "createdAt": "2026-03-20T08:23:15.339Z",
-        "id": 180,
+        "createdAt": "2026-03-20T08:35:23.849Z",
+        "id": 182,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "83f861f7-c750-451a-8207-a51026e4f03c",
+        "versionId": "df785e9a-cae9-4af0-af16-974d42f81756",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       }
