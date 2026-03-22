@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-22T17:18:50.110Z",
+  "updatedAt": "2026-03-22T19:25:40.035Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
@@ -17,8 +17,8 @@
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.2,
       "position": [
-        -1264,
-        400
+        -1072,
+        432
       ],
       "id": "d1e5a878-4856-4c61-96a0-3e4caec1ddbe",
       "name": "Telegram Trigger",
@@ -140,7 +140,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        -448,
+        -224,
         416
       ],
       "id": "3cdb270b-4093-4bb9-8a75-a8f6ad78b555",
@@ -157,8 +157,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        16,
-        352
+        240,
+        -480
       ],
       "id": "3dd43132-2b79-46ff-8d91-a25d8b68b424",
       "name": "Send a text message",
@@ -188,8 +188,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        -992,
-        400
+        -800,
+        432
       ],
       "id": "211242d7-2513-4d75-9810-5e772e63b7ec",
       "name": "Get many rows",
@@ -229,8 +229,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        -736,
-        400
+        -544,
+        432
       ],
       "id": "5e8b1190-de6b-4045-9e73-f43c3959699e",
       "name": "If"
@@ -246,8 +246,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        -384,
-        176
+        -256,
+        208
       ],
       "id": "0e4141d4-7f51-4e8f-81c2-47bd2ba51896",
       "name": "Send a text message1",
@@ -275,8 +275,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        208,
-        352
+        432,
+        -480
       ],
       "id": "9751cf10-cc19-4996-ac48-b511967c0833",
       "name": "Get a row",
@@ -316,8 +316,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        416,
-        352
+        640,
+        -480
       ],
       "id": "e0d01ac3-7181-46fe-9937-4ba2602dd3dc",
       "name": "If1"
@@ -341,8 +341,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        640,
-        256
+        864,
+        -576
       ],
       "id": "c079dcfc-1f76-466a-a7d3-47c3a8011f16",
       "name": "Create a row",
@@ -378,8 +378,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        656,
-        416
+        880,
+        -416
       ],
       "id": "eaa4ab81-e571-4e0c-b439-092fee08bb0d",
       "name": "Update a row",
@@ -406,8 +406,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        256,
-        640
+        240,
+        112
       ],
       "id": "5f45d151-abf9-4e6f-88f1-e75777e4df77",
       "name": "Get a row1",
@@ -435,8 +435,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        -176,
-        1808
+        240,
+        1344
       ],
       "id": "4b3f35d0-f74c-42aa-9770-7024282214a8",
       "name": "Get a row3",
@@ -531,8 +531,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        416,
-        640
+        1040,
+        400
       ],
       "id": "1cb03d59-88af-4142-8283-5b7d00e9d0ac",
       "name": "Switch1"
@@ -572,8 +572,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        48,
-        1808
+        464,
+        1344
       ],
       "id": "21cb7714-f82d-4697-bcaa-c9c497266fd5",
       "name": "Switch3"
@@ -606,35 +606,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        720,
-        624
+        1328,
+        -160
       ],
       "id": "de6b50fc-6be4-4a08-adb0-3bb52b7aed02",
       "name": "If2"
-    },
-    {
-      "parameters": {
-        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "Пожалуйста, отправьте фотографию плана БТИ, не используйте файлы формата PDF. Данная функция находится в разработке.",
-        "additionalFields": {
-          "appendAttribution": false
-        }
-      },
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        1168,
-        832
-      ],
-      "id": "46a29113-d0ec-45d6-aa78-8b1c5878ed3d",
-      "name": "Send a text message3",
-      "webhookId": "d832c17f-f0e3-49bc-aedd-d7dd9d999fa8",
-      "credentials": {
-        "telegramApi": {
-          "id": "pf7Lmwh5V28tUCpr",
-          "name": "BTI_BOT"
-        }
-      }
     },
     {
       "parameters": {
@@ -647,8 +623,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        256,
-        1200
+        1056,
+        1168
       ],
       "id": "87efe85c-f532-4a82-acb8-c7f5cc8bcff3",
       "name": "Send a text message4",
@@ -689,8 +665,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1936,
-        608
+        2960,
+        -176
       ],
       "id": "fd49dc1e-3545-4758-9ad2-8595ddad11de",
       "name": "Update a row1",
@@ -712,8 +688,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        2144,
-        608
+        3168,
+        -176
       ],
       "id": "e90a14a3-71d9-40cc-87ec-5006aad49823",
       "name": "Send a text message5",
@@ -734,8 +710,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1168,
-        608
+        1792,
+        -176
       ],
       "id": "d5e713e7-2ef3-47c3-8911-0bf3a4d1a9dd",
       "name": "Get a file",
@@ -774,8 +750,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        928,
-        816
+        1536,
+        32
       ],
       "id": "74d702b6-c01f-4cfd-a3d3-88b3ea2e0451",
       "name": "If3"
@@ -791,8 +767,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        928,
-        608
+        1536,
+        -176
       ],
       "id": "1c4f1c8b-5fd3-4137-81bb-ee5cdfb54f20",
       "name": "Send a text message6",
@@ -829,8 +805,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        1344,
-        608
+        2144,
+        -176
       ],
       "id": "1ae98b25-cd63-4132-b3da-a5485db392e4",
       "name": "HTTP Request1"
@@ -842,8 +818,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2368,
-        608
+        3392,
+        -176
       ],
       "id": "fc116ce3-51c6-48b2-9d18-7f739bfddb24",
       "name": "Code - Gemini Request"
@@ -874,8 +850,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2608,
-        608
+        3632,
+        -176
       ],
       "id": "93876821-54aa-4474-85f5-b81ca5060de6",
       "name": "HTTP Request - Gemini",
@@ -888,36 +864,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2848,
-        608
+        3872,
+        -176
       ],
       "id": "91eb5d68-3d8a-457e-ac76-9495a3e555db",
       "name": "Code - Parse Gemini"
-    },
-    {
-      "parameters": {
-        "chatId": "={{ $json.chatId }}",
-        "text": "={{ $json.rooms_text }}",
-        "additionalFields": {
-          "appendAttribution": false,
-          "parse_mode": "HTML"
-        }
-      },
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        3088,
-        608
-      ],
-      "id": "e7416cab-f5c2-4176-ac65-8fd3cc891595",
-      "name": "Telegram - Plan Analyzed",
-      "webhookId": "317298b9-df44-4134-a351-a0ed68001c30",
-      "credentials": {
-        "telegramApi": {
-          "id": "pf7Lmwh5V28tUCpr",
-          "name": "BTI_BOT"
-        }
-      }
     },
     {
       "parameters": {
@@ -956,8 +907,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        3328,
-        608
+        5040,
+        -160
       ],
       "id": "2cb84681-f748-4ccd-be55-7da7d1a2ec95",
       "name": "Supabase - Save Analysis",
@@ -980,8 +931,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3568,
-        608
+        5280,
+        -160
       ],
       "id": "76283c6f-fdfb-42aa-a31a-63edfe70b397",
       "name": "Telegram - First Shot Instruction",
@@ -1002,8 +953,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1120,
-        1264
+        2000,
+        640
       ],
       "id": "b80751d4-4483-408d-bc2b-67ca740b0bc8",
       "name": "Get Photo for Shot",
@@ -1022,8 +973,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1360,
-        1264
+        2240,
+        640
       ],
       "id": "67da245a-afe4-4749-9df0-af5c7c8991dc",
       "name": "Code - Process Shot"
@@ -1053,8 +1004,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        1600,
-        1264
+        2480,
+        640
       ],
       "id": "7589283f-02cf-4e1a-a838-e63550453ba8",
       "name": "HTTP Request - Upload Photo"
@@ -1084,8 +1035,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1840,
-        1264
+        2720,
+        640
       ],
       "id": "d9a61a62-0af3-4d77-b50a-8c22ac53fe92",
       "name": "Supabase - Save Shot Status",
@@ -1124,8 +1075,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2080,
-        1264
+        2960,
+        640
       ],
       "id": "e61d3e38-db2d-4d1e-ad16-72a7f1fa8699",
       "name": "If - All Shots Done"
@@ -1155,8 +1106,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        2320,
-        1136
+        3200,
+        512
       ],
       "id": "e539baa3-9faa-4d6d-9af6-29495fa23f4c",
       "name": "Supabase - Photos Complete",
@@ -1178,8 +1129,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        2560,
-        1136
+        3440,
+        512
       ],
       "id": "147d6086-2898-4e54-a8a9-41776e6f342d",
       "name": "Telegram - All Photos Done",
@@ -1203,8 +1154,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        2320,
-        1408
+        3200,
+        784
       ],
       "id": "23224734-50de-4041-a12e-5a65e6449d78",
       "name": "Telegram - Next Shot",
@@ -1223,8 +1174,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1744,
-        608
+        2768,
+        -176
       ],
       "id": "code-extract-base64-bti",
       "name": "Code - Extract Base64"
@@ -1497,8 +1448,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1536,
-        608
+        2560,
+        -176
       ]
     },
     {
@@ -1529,8 +1480,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        592,
-        1040
+        1328,
+        416
       ],
       "id": "if-photo-shot-check-0001",
       "name": "If - Is Photo Shot"
@@ -1546,8 +1497,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        912,
-        1024
+        1648,
+        400
       ],
       "id": "telegram-photo-warning-shot",
       "name": "Telegram - Photo Warning Shot",
@@ -1561,7 +1512,6 @@
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/embeddings?select=id,source,chunk",
         "sendHeaders": true,
         "headerParameters": {
@@ -1581,8 +1531,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        3280,
-        1136
+        3680,
+        512
       ],
       "id": "rag-search-node-001",
       "name": "HTTP Request - RAG Search"
@@ -1594,8 +1544,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3520,
-        1136
+        3920,
+        512
       ],
       "id": "rag-format-results-node-001",
       "name": "Code - Format RAG Results"
@@ -1616,8 +1566,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        -160,
-        960
+        240,
+        848
       ],
       "id": "get-text-session-node-001",
       "name": "Get a row - Text",
@@ -1656,8 +1606,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        16,
-        960
+        448,
+        848
       ],
       "id": "if-text-step-pc-node-001",
       "name": "If - Text Step Photos Complete"
@@ -1673,8 +1623,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        256,
-        944
+        720,
+        752
       ],
       "id": "telegram-analysis-progress-text-001",
       "name": "Telegram - Analysis In Progress Text",
@@ -1697,8 +1647,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        560,
-        1664
+        1328,
+        688
       ],
       "id": "telegram-analysis-progress-doc-001",
       "name": "Telegram - Analysis In Progress Doc",
@@ -1726,8 +1676,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        3760,
-        1136
+        4144,
+        512
       ],
       "id": "get-analysis-session-node-001",
       "name": "Supabase - Get Analysis Session",
@@ -1746,8 +1696,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4000,
-        1136
+        4384,
+        512
       ],
       "id": "build-gpt4o-payload-node-001",
       "name": "Code - Build GPT4o Payload"
@@ -1778,8 +1728,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        4240,
-        1136
+        4624,
+        512
       ],
       "id": "http-gpt4o-node-001",
       "name": "HTTP Request - GPT4o",
@@ -1792,8 +1742,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        1136
+        4864,
+        512
       ],
       "id": "parse-gpt4o-node-001",
       "name": "Code - Parse GPT4o Response"
@@ -1832,8 +1782,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        4720,
-        1136
+        5360,
+        528
       ],
       "id": "save-analysis-result-node-001",
       "name": "HTTP Request - Save Analysis Result"
@@ -1845,8 +1795,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        940,
-        1264
+        1824,
+        640
       ],
       "id": "code-extract-file-id-0001",
       "name": "Code - Extract File ID"
@@ -1858,8 +1808,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4960,
-        1136
+        5584,
+        528
       ],
       "id": "step6-code-build-report",
       "name": "Code - Build Report"
@@ -1876,11 +1826,12 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        5200,
-        1136
+        6480,
+        528
       ],
       "id": "step6-telegram-send-report",
       "name": "Telegram - Send Report",
+      "webhookId": "324ec823-7e1e-486e-a985-d21a21019745",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -1915,8 +1866,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        5440,
-        1136
+        6720,
+        528
       ],
       "id": "step6-if-low-confidence",
       "name": "IF - Low Confidence"
@@ -1933,11 +1884,12 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        5680,
-        920
+        6960,
+        320
       ],
       "id": "step6-telegram-notify-manager",
       "name": "Telegram - Notify Manager",
+      "webhookId": "00d33b2b-85f0-435b-9976-507ed8b74fd5",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -1979,8 +1931,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5920,
-        920
+        7200,
+        320
       ],
       "id": "step6-reset-session-manager",
       "name": "HTTP Request - Reset Session (manager path)"
@@ -1996,11 +1948,12 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        6160,
-        920
+        7440,
+        320
       ],
       "id": "step6-analysis-done-manager",
       "name": "Telegram - Analysis Done (manager path)",
+      "webhookId": "21010971-1a4e-496e-88d1-bface5bcac97",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2042,8 +1995,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5680,
-        1352
+        6960,
+        752
       ],
       "id": "step6-reset-session-normal",
       "name": "HTTP Request - Reset Session (normal path)"
@@ -2059,11 +2012,12 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        5920,
-        1352
+        7200,
+        752
       ],
       "id": "step6-analysis-done-normal",
       "name": "Telegram - Analysis Done (normal path)",
+      "webhookId": "6dfa7052-65c3-4cd6-98a7-85b43695b977",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2072,23 +2026,22 @@
       }
     },
     {
-      "name": "Telegram - PDF Received",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        1168,
-        1000
-      ],
-      "id": "telegram-pdf-received-001",
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
         "text": "📄 PDF получен, конвертирую в изображение...",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "name": "Telegram - PDF Received",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1776,
+        192
+      ],
+      "id": "telegram-pdf-received-001",
+      "webhookId": "99e112a4-725e-4383-a148-f335b8af92fd",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2097,20 +2050,19 @@
       }
     },
     {
+      "parameters": {
+        "resource": "file",
+        "operation": "getFile"
+      },
       "name": "Get Telegram File PDF",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1344,
-        1000
+        1952,
+        192
       ],
       "id": "get-telegram-file-pdf-001",
-      "parameters": {
-        "resource": "file",
-        "operation": "getFile",
-        "fileId": "={{ $('Telegram Trigger').first().json.message.document.file_id }}",
-        "additionalFields": {}
-      },
+      "webhookId": "43e984ad-0d18-4ce2-950d-3c56a059b232",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2119,18 +2071,9 @@
       }
     },
     {
-      "name": "HTTP Request - Convert PDF",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1536,
-        1000
-      ],
-      "id": "http-convert-pdf-001",
       "parameters": {
         "method": "POST",
         "url": "http://python-service:5000/convert-pdf",
-        "sendHeaders": false,
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -2149,17 +2092,17 @@
             }
           }
         }
-      }
-    },
-    {
-      "name": "HTTP Request - Upload Converted Plan",
+      },
+      "name": "HTTP Request - Convert PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1728,
-        1000
+        2144,
+        192
       ],
-      "id": "http-upload-converted-plan-001",
+      "id": "http-convert-pdf-001"
+    },
+    {
       "parameters": {
         "method": "PUT",
         "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/bti-files/plans/{{ $('Telegram Trigger').first().json.message.chat.id }}/plan.png",
@@ -2180,20 +2123,19 @@
         "contentType": "binaryData",
         "inputDataFieldName": "data",
         "options": {}
-      }
-    },
-    {
-      "name": "HTTP Request - Download Plan for Annotation",
+      },
+      "name": "HTTP Request - Upload Converted Plan",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2848,
-        800
+        2336,
+        192
       ],
-      "id": "http-dl-plan-annotation-001",
+      "id": "http-upload-converted-plan-001"
+    },
+    {
       "parameters": {
-        "method": "GET",
-        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/={{ $('Code - Parse Gemini').first().json.chatId }}/plan.png",
+        "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Parse Gemini').first().json.chatId + '/plan.png' }}",
         "options": {
           "response": {
             "response": {
@@ -2201,17 +2143,17 @@
             }
           }
         }
-      }
-    },
-    {
-      "name": "HTTP Request - Annotate Rooms",
+      },
+      "name": "HTTP Request - Download Plan for Annotation",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3088,
-        800
+        4320,
+        -160
       ],
-      "id": "http-annotate-rooms-001",
+      "id": "http-dl-plan-annotation-001"
+    },
+    {
       "parameters": {
         "method": "POST",
         "url": "http://python-service:5000/annotate-rooms",
@@ -2225,7 +2167,6 @@
               "inputDataFieldName": "data"
             },
             {
-              "parameterType": "formData",
               "name": "rooms_json",
               "value": "={{ JSON.stringify($('Code - Parse Gemini').first().json.rooms_json) }}"
             }
@@ -2238,29 +2179,35 @@
             }
           }
         }
-      }
+      },
+      "name": "HTTP Request - Annotate Rooms",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4560,
+        -160
+      ],
+      "id": "http-annotate-rooms-001"
     },
     {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Code - Parse Gemini').first().json.chatId }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ $('Code - Parse Gemini').first().json.rooms_text }}",
+          "parse_mode": "HTML"
+        }
+      },
       "name": "Telegram - Send Annotated Plan",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3328,
-        800
+        4800,
+        -160
       ],
       "id": "telegram-send-annotated-plan-001",
-      "parameters": {
-        "resource": "message",
-        "operation": "sendPhoto",
-        "chatId": "={{ $('Code - Parse Gemini').first().json.chatId }}",
-        "binaryData": true,
-        "binaryPropertyName": "data",
-        "additionalFields": {
-          "caption": "={{ $('Code - Parse Gemini').first().json.rooms_text }}",
-          "appendAttribution": false,
-          "parse_mode": "HTML"
-        }
-      },
+      "webhookId": "ce40d43f-d370-414c-a1d9-97b1739fbd80",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2269,17 +2216,8 @@
       }
     },
     {
-      "name": "HTTP Request - Download Plan for Changes",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        4960,
-        1320
-      ],
-      "id": "http-dl-plan-changes-001",
       "parameters": {
-        "method": "GET",
-        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/={{ $('Code - Build Report').first().json.chatId }}/plan.png",
+        "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Build Report').first().json.chatId + '/plan.png' }}",
         "options": {
           "response": {
             "response": {
@@ -2287,17 +2225,17 @@
             }
           }
         }
-      }
-    },
-    {
-      "name": "HTTP Request - Annotate Changes",
+      },
+      "name": "HTTP Request - Download Plan for Changes",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5200,
-        1320
+        5792,
+        528
       ],
-      "id": "http-annotate-changes-001",
+      "id": "http-dl-plan-changes-001"
+    },
+    {
       "parameters": {
         "method": "POST",
         "url": "http://python-service:5000/annotate-changes",
@@ -2311,12 +2249,10 @@
               "inputDataFieldName": "data"
             },
             {
-              "parameterType": "formData",
               "name": "rooms_json",
               "value": "={{ JSON.stringify($('Supabase - Get Analysis Session').first().json.rooms_json || []) }}"
             },
             {
-              "parameterType": "formData",
               "name": "changes",
               "value": "={{ JSON.stringify($('Code - Parse GPT4o Response').first().json.analysis_result.changes || []) }}"
             }
@@ -2329,28 +2265,34 @@
             }
           }
         }
-      }
+      },
+      "name": "HTTP Request - Annotate Changes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6032,
+        528
+      ],
+      "id": "http-annotate-changes-001"
     },
     {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "🗺 Аннотированный план с выделенными изменениями"
+        }
+      },
       "name": "Telegram - Send Annotated Changes",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        5440,
-        1320
+        6256,
+        528
       ],
       "id": "telegram-send-annotated-changes-001",
-      "parameters": {
-        "resource": "message",
-        "operation": "sendPhoto",
-        "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
-        "binaryData": true,
-        "binaryPropertyName": "data",
-        "additionalFields": {
-          "caption": "🗺 Аннотированный план с выделенными изменениями",
-          "appendAttribution": false
-        }
-      },
+      "webhookId": "9712531c-dfcf-43cb-baf0-bc53509de057",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2359,14 +2301,6 @@
       }
     },
     {
-      "name": "IF - Session Timeout",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        340,
-        720
-      ],
-      "id": "if-session-timeout-001",
       "parameters": {
         "conditions": {
           "options": {
@@ -2390,26 +2324,33 @@
           "combinator": "and"
         },
         "options": {}
-      }
+      },
+      "name": "IF - Session Timeout",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        448,
+        112
+      ],
+      "id": "if-session-timeout-001"
     },
     {
-      "name": "Telegram - Session Expired",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        500,
-        850
-      ],
-      "id": "telegram-session-expired-001",
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
         "text": "⏱ Сессия устарела (более 48 часов неактивности). Отправьте /start для начала нового анализа.",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "name": "Telegram - Session Expired",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        752,
+        96
+      ],
+      "id": "telegram-session-expired-001",
+      "webhookId": "2eef4226-27ee-45f4-af5c-dd157d119640",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2418,14 +2359,6 @@
       }
     },
     {
-      "name": "HTTP Request - Reset Expired Session",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        700,
-        850
-      ],
-      "id": "http-reset-expired-001",
       "parameters": {
         "method": "PATCH",
         "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $('Telegram Trigger').first().json.message.chat.id }}",
@@ -2455,17 +2388,17 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ step: 'idle', updated_at: new Date().toISOString() }) }}",
         "options": {}
-      }
+      },
+      "name": "HTTP Request - Reset Expired Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1008,
+        96
+      ],
+      "id": "http-reset-expired-001"
     },
     {
-      "name": "IF - Gemini Error",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        3010,
-        608
-      ],
-      "id": "if-gemini-error-001",
       "parameters": {
         "conditions": {
           "options": {
@@ -2489,26 +2422,33 @@
           "combinator": "and"
         },
         "options": {}
-      }
+      },
+      "name": "IF - Gemini Error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4080,
+        -176
+      ],
+      "id": "if-gemini-error-001"
     },
     {
-      "name": "Telegram - Gemini Error",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        3200,
-        730
-      ],
-      "id": "telegram-gemini-error-001",
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $json.chatId }}",
         "text": "={{ '❌ Ошибка при анализе плана: ' + $json.errorMsg + '\\n\\nОтправьте /start для повторной попытки.' }}",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "name": "Telegram - Gemini Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4320,
+        -368
+      ],
+      "id": "telegram-gemini-error-001",
+      "webhookId": "f05ac83c-c547-4fdf-96c6-bc8d494045cc",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2517,14 +2457,6 @@
       }
     },
     {
-      "name": "HTTP Request - Reset Session (Gemini Error)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        3430,
-        730
-      ],
-      "id": "http-reset-gemini-err-001",
       "parameters": {
         "method": "PATCH",
         "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $('Telegram Trigger').first().json.message.chat.id }}",
@@ -2554,17 +2486,17 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ step: 'idle', updated_at: new Date().toISOString() }) }}",
         "options": {}
-      }
+      },
+      "name": "HTTP Request - Reset Session (Gemini Error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4560,
+        -368
+      ],
+      "id": "http-reset-gemini-err-001"
     },
     {
-      "name": "IF - GPT4o Error",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        4700,
-        1136
-      ],
-      "id": "if-gpt4o-error-001",
       "parameters": {
         "conditions": {
           "options": {
@@ -2588,26 +2520,33 @@
           "combinator": "and"
         },
         "options": {}
-      }
+      },
+      "name": "IF - GPT4o Error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5088,
+        512
+      ],
+      "id": "if-gpt4o-error-001"
     },
     {
-      "name": "Telegram - GPT4o Error",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        4900,
-        1300
-      ],
-      "id": "telegram-gpt4o-error-001",
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $json.chatId }}",
         "text": "={{ '❌ Ошибка при анализе фотографий: ' + $json.errorMsg + '\\n\\nОтправьте /start для повторной попытки.' }}",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "name": "Telegram - GPT4o Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        5360,
+        336
+      ],
+      "id": "telegram-gpt4o-error-001",
+      "webhookId": "2291c7fd-cbcc-427f-8dc7-d92c4b0a8870",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2616,14 +2555,6 @@
       }
     },
     {
-      "name": "HTTP Request - Reset Session (GPT4o Error)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        5130,
-        1300
-      ],
-      "id": "http-reset-gpt4o-err-001",
       "parameters": {
         "method": "PATCH",
         "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $('Telegram Trigger').first().json.message.chat.id }}",
@@ -2653,17 +2584,17 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ step: 'idle', updated_at: new Date().toISOString() }) }}",
         "options": {}
-      }
+      },
+      "name": "HTTP Request - Reset Session (GPT4o Error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5568,
+        336
+      ],
+      "id": "http-reset-gpt4o-err-001"
     },
     {
-      "name": "IF - Text During Photo Collection",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        256,
-        1120
-      ],
-      "id": "if-text-collecting-001",
       "parameters": {
         "conditions": {
           "options": {
@@ -2686,26 +2617,33 @@
           "combinator": "and"
         },
         "options": {}
-      }
+      },
+      "name": "IF - Text During Photo Collection",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1008
+      ],
+      "id": "if-text-collecting-001"
     },
     {
-      "name": "Telegram - Text During Photo Collection",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        456,
-        1120
-      ],
-      "id": "telegram-text-during-photos-001",
       "parameters": {
-        "resource": "message",
-        "operation": "sendMessage",
         "chatId": "={{ $json.chat_id }}",
         "text": "📷 Ожидаю фотографию комнаты, а не текст.\n\nПожалуйста, сделайте фото и отправьте его как файл/документ для лучшего качества.\n\nДля отмены отправьте /start.",
         "additionalFields": {
           "appendAttribution": false
         }
       },
+      "name": "Telegram - Text During Photo Collection",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1056,
+        928
+      ],
+      "id": "telegram-text-during-photos-001",
+      "webhookId": "568c25a3-78bd-447f-8d54-6ade2914433f",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2992,17 +2930,6 @@
         [
           {
             "node": "IF - Gemini Error",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Telegram - Plan Analyzed": {
-      "main": [
-        [
-          {
-            "node": "Supabase - Save Analysis",
             "type": "main",
             "index": 0
           }
@@ -3692,9 +3619,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "97ad64c9-e8bf-4b46-8108-38456e4cca06",
-  "activeVersionId": "97ad64c9-e8bf-4b46-8108-38456e4cca06",
-  "versionCounter": 211,
+  "versionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
+  "activeVersionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
+  "versionCounter": 222,
   "triggerCount": 1,
   "shared": [
     {
@@ -3748,9 +3675,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-03-22T17:18:50.114Z",
-    "createdAt": "2026-03-22T17:18:50.114Z",
-    "versionId": "97ad64c9-e8bf-4b46-8108-38456e4cca06",
+    "updatedAt": "2026-03-22T19:25:40.041Z",
+    "createdAt": "2026-03-22T19:25:40.041Z",
+    "versionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
     "workflowId": "305RmoqLIGnuYonX",
     "nodes": [
       {
@@ -3763,8 +3690,8 @@
         "type": "n8n-nodes-base.telegramTrigger",
         "typeVersion": 1.2,
         "position": [
-          -1264,
-          400
+          -1072,
+          432
         ],
         "id": "d1e5a878-4856-4c61-96a0-3e4caec1ddbe",
         "name": "Telegram Trigger",
@@ -3886,7 +3813,7 @@
         "type": "n8n-nodes-base.switch",
         "typeVersion": 3.4,
         "position": [
-          -448,
+          -224,
           416
         ],
         "id": "3cdb270b-4093-4bb9-8a75-a8f6ad78b555",
@@ -3903,8 +3830,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          16,
-          352
+          240,
+          -480
         ],
         "id": "3dd43132-2b79-46ff-8d91-a25d8b68b424",
         "name": "Send a text message",
@@ -3934,8 +3861,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          -992,
-          400
+          -800,
+          432
         ],
         "id": "211242d7-2513-4d75-9810-5e772e63b7ec",
         "name": "Get many rows",
@@ -3975,8 +3902,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          -736,
-          400
+          -544,
+          432
         ],
         "id": "5e8b1190-de6b-4045-9e73-f43c3959699e",
         "name": "If"
@@ -3992,8 +3919,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          -384,
-          176
+          -256,
+          208
         ],
         "id": "0e4141d4-7f51-4e8f-81c2-47bd2ba51896",
         "name": "Send a text message1",
@@ -4021,8 +3948,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          208,
-          352
+          432,
+          -480
         ],
         "id": "9751cf10-cc19-4996-ac48-b511967c0833",
         "name": "Get a row",
@@ -4062,8 +3989,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          416,
-          352
+          640,
+          -480
         ],
         "id": "e0d01ac3-7181-46fe-9937-4ba2602dd3dc",
         "name": "If1"
@@ -4087,8 +4014,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          640,
-          256
+          864,
+          -576
         ],
         "id": "c079dcfc-1f76-466a-a7d3-47c3a8011f16",
         "name": "Create a row",
@@ -4124,8 +4051,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          656,
-          416
+          880,
+          -416
         ],
         "id": "eaa4ab81-e571-4e0c-b439-092fee08bb0d",
         "name": "Update a row",
@@ -4152,8 +4079,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          256,
-          640
+          240,
+          112
         ],
         "id": "5f45d151-abf9-4e6f-88f1-e75777e4df77",
         "name": "Get a row1",
@@ -4181,8 +4108,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          -176,
-          1808
+          240,
+          1344
         ],
         "id": "4b3f35d0-f74c-42aa-9770-7024282214a8",
         "name": "Get a row3",
@@ -4277,8 +4204,8 @@
         "type": "n8n-nodes-base.switch",
         "typeVersion": 3.4,
         "position": [
-          416,
-          640
+          1040,
+          400
         ],
         "id": "1cb03d59-88af-4142-8283-5b7d00e9d0ac",
         "name": "Switch1"
@@ -4318,8 +4245,8 @@
         "type": "n8n-nodes-base.switch",
         "typeVersion": 3.4,
         "position": [
-          48,
-          1808
+          464,
+          1344
         ],
         "id": "21cb7714-f82d-4697-bcaa-c9c497266fd5",
         "name": "Switch3"
@@ -4352,35 +4279,11 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          720,
-          624
+          1328,
+          -160
         ],
         "id": "de6b50fc-6be4-4a08-adb0-3bb52b7aed02",
         "name": "If2"
-      },
-      {
-        "parameters": {
-          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-          "text": "Пожалуйста, отправьте фотографию плана БТИ, не используйте файлы формата PDF. Данная функция находится в разработке.",
-          "additionalFields": {
-            "appendAttribution": false
-          }
-        },
-        "type": "n8n-nodes-base.telegram",
-        "typeVersion": 1.2,
-        "position": [
-          1168,
-          832
-        ],
-        "id": "46a29113-d0ec-45d6-aa78-8b1c5878ed3d",
-        "name": "Send a text message3",
-        "webhookId": "d832c17f-f0e3-49bc-aedd-d7dd9d999fa8",
-        "credentials": {
-          "telegramApi": {
-            "id": "pf7Lmwh5V28tUCpr",
-            "name": "BTI_BOT"
-          }
-        }
       },
       {
         "parameters": {
@@ -4393,8 +4296,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          256,
-          1200
+          1056,
+          1168
         ],
         "id": "87efe85c-f532-4a82-acb8-c7f5cc8bcff3",
         "name": "Send a text message4",
@@ -4435,8 +4338,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          1936,
-          608
+          2960,
+          -176
         ],
         "id": "fd49dc1e-3545-4758-9ad2-8595ddad11de",
         "name": "Update a row1",
@@ -4458,8 +4361,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          2144,
-          608
+          3168,
+          -176
         ],
         "id": "e90a14a3-71d9-40cc-87ec-5006aad49823",
         "name": "Send a text message5",
@@ -4480,8 +4383,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          1168,
-          608
+          1792,
+          -176
         ],
         "id": "d5e713e7-2ef3-47c3-8911-0bf3a4d1a9dd",
         "name": "Get a file",
@@ -4520,8 +4423,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          928,
-          816
+          1536,
+          32
         ],
         "id": "74d702b6-c01f-4cfd-a3d3-88b3ea2e0451",
         "name": "If3"
@@ -4537,8 +4440,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          928,
-          608
+          1536,
+          -176
         ],
         "id": "1c4f1c8b-5fd3-4137-81bb-ee5cdfb54f20",
         "name": "Send a text message6",
@@ -4575,8 +4478,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
         "position": [
-          1344,
-          608
+          2144,
+          -176
         ],
         "id": "1ae98b25-cd63-4132-b3da-a5485db392e4",
         "name": "HTTP Request1"
@@ -4588,8 +4491,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2368,
-          608
+          3392,
+          -176
         ],
         "id": "fc116ce3-51c6-48b2-9d18-7f739bfddb24",
         "name": "Code - Gemini Request"
@@ -4620,8 +4523,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
         "position": [
-          2608,
-          608
+          3632,
+          -176
         ],
         "id": "93876821-54aa-4474-85f5-b81ca5060de6",
         "name": "HTTP Request - Gemini",
@@ -4634,36 +4537,11 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2848,
-          608
+          3872,
+          -176
         ],
         "id": "91eb5d68-3d8a-457e-ac76-9495a3e555db",
         "name": "Code - Parse Gemini"
-      },
-      {
-        "parameters": {
-          "chatId": "={{ $json.chatId }}",
-          "text": "={{ $json.rooms_text }}",
-          "additionalFields": {
-            "appendAttribution": false,
-            "parse_mode": "HTML"
-          }
-        },
-        "type": "n8n-nodes-base.telegram",
-        "typeVersion": 1.2,
-        "position": [
-          3088,
-          608
-        ],
-        "id": "e7416cab-f5c2-4176-ac65-8fd3cc891595",
-        "name": "Telegram - Plan Analyzed",
-        "webhookId": "317298b9-df44-4134-a351-a0ed68001c30",
-        "credentials": {
-          "telegramApi": {
-            "id": "pf7Lmwh5V28tUCpr",
-            "name": "BTI_BOT"
-          }
-        }
       },
       {
         "parameters": {
@@ -4702,8 +4580,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          3328,
-          608
+          5040,
+          -160
         ],
         "id": "2cb84681-f748-4ccd-be55-7da7d1a2ec95",
         "name": "Supabase - Save Analysis",
@@ -4726,8 +4604,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          3568,
-          608
+          5280,
+          -160
         ],
         "id": "76283c6f-fdfb-42aa-a31a-63edfe70b397",
         "name": "Telegram - First Shot Instruction",
@@ -4748,8 +4626,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          1120,
-          1264
+          2000,
+          640
         ],
         "id": "b80751d4-4483-408d-bc2b-67ca740b0bc8",
         "name": "Get Photo for Shot",
@@ -4768,8 +4646,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1360,
-          1264
+          2240,
+          640
         ],
         "id": "67da245a-afe4-4749-9df0-af5c7c8991dc",
         "name": "Code - Process Shot"
@@ -4799,8 +4677,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
         "position": [
-          1600,
-          1264
+          2480,
+          640
         ],
         "id": "7589283f-02cf-4e1a-a838-e63550453ba8",
         "name": "HTTP Request - Upload Photo"
@@ -4830,8 +4708,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          1840,
-          1264
+          2720,
+          640
         ],
         "id": "d9a61a62-0af3-4d77-b50a-8c22ac53fe92",
         "name": "Supabase - Save Shot Status",
@@ -4870,8 +4748,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          2080,
-          1264
+          2960,
+          640
         ],
         "id": "e61d3e38-db2d-4d1e-ad16-72a7f1fa8699",
         "name": "If - All Shots Done"
@@ -4901,8 +4779,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          2320,
-          1136
+          3200,
+          512
         ],
         "id": "e539baa3-9faa-4d6d-9af6-29495fa23f4c",
         "name": "Supabase - Photos Complete",
@@ -4924,8 +4802,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          2560,
-          1136
+          3440,
+          512
         ],
         "id": "147d6086-2898-4e54-a8a9-41776e6f342d",
         "name": "Telegram - All Photos Done",
@@ -4949,8 +4827,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          2320,
-          1408
+          3200,
+          784
         ],
         "id": "23224734-50de-4041-a12e-5a65e6449d78",
         "name": "Telegram - Next Shot",
@@ -4969,8 +4847,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1744,
-          608
+          2768,
+          -176
         ],
         "id": "code-extract-base64-bti",
         "name": "Code - Extract Base64"
@@ -5243,8 +5121,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1536,
-          608
+          2560,
+          -176
         ]
       },
       {
@@ -5275,8 +5153,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          592,
-          1040
+          1328,
+          416
         ],
         "id": "if-photo-shot-check-0001",
         "name": "If - Is Photo Shot"
@@ -5292,8 +5170,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          912,
-          1024
+          1648,
+          400
         ],
         "id": "telegram-photo-warning-shot",
         "name": "Telegram - Photo Warning Shot",
@@ -5307,7 +5185,6 @@
       },
       {
         "parameters": {
-          "method": "GET",
           "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/embeddings?select=id,source,chunk",
           "sendHeaders": true,
           "headerParameters": {
@@ -5327,8 +5204,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
         "position": [
-          3280,
-          1136
+          3680,
+          512
         ],
         "id": "rag-search-node-001",
         "name": "HTTP Request - RAG Search"
@@ -5340,8 +5217,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          3520,
-          1136
+          3920,
+          512
         ],
         "id": "rag-format-results-node-001",
         "name": "Code - Format RAG Results"
@@ -5362,8 +5239,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          -160,
-          960
+          240,
+          848
         ],
         "id": "get-text-session-node-001",
         "name": "Get a row - Text",
@@ -5402,8 +5279,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          16,
-          960
+          448,
+          848
         ],
         "id": "if-text-step-pc-node-001",
         "name": "If - Text Step Photos Complete"
@@ -5419,8 +5296,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          256,
-          944
+          720,
+          752
         ],
         "id": "telegram-analysis-progress-text-001",
         "name": "Telegram - Analysis In Progress Text",
@@ -5443,8 +5320,8 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          560,
-          1664
+          1328,
+          688
         ],
         "id": "telegram-analysis-progress-doc-001",
         "name": "Telegram - Analysis In Progress Doc",
@@ -5472,8 +5349,8 @@
         "type": "n8n-nodes-base.supabase",
         "typeVersion": 1,
         "position": [
-          3760,
-          1136
+          4144,
+          512
         ],
         "id": "get-analysis-session-node-001",
         "name": "Supabase - Get Analysis Session",
@@ -5492,8 +5369,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4000,
-          1136
+          4384,
+          512
         ],
         "id": "build-gpt4o-payload-node-001",
         "name": "Code - Build GPT4o Payload"
@@ -5524,8 +5401,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
         "position": [
-          4240,
-          1136
+          4624,
+          512
         ],
         "id": "http-gpt4o-node-001",
         "name": "HTTP Request - GPT4o",
@@ -5538,8 +5415,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4480,
-          1136
+          4864,
+          512
         ],
         "id": "parse-gpt4o-node-001",
         "name": "Code - Parse GPT4o Response"
@@ -5578,8 +5455,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
         "position": [
-          4720,
-          1136
+          5360,
+          528
         ],
         "id": "save-analysis-result-node-001",
         "name": "HTTP Request - Save Analysis Result"
@@ -5591,8 +5468,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          940,
-          1264
+          1824,
+          640
         ],
         "id": "code-extract-file-id-0001",
         "name": "Code - Extract File ID"
@@ -5604,8 +5481,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4960,
-          1136
+          5584,
+          528
         ],
         "id": "step6-code-build-report",
         "name": "Code - Build Report"
@@ -5622,11 +5499,12 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          5200,
-          1136
+          6480,
+          528
         ],
         "id": "step6-telegram-send-report",
         "name": "Telegram - Send Report",
+        "webhookId": "324ec823-7e1e-486e-a985-d21a21019745",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -5661,8 +5539,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          5440,
-          1136
+          6720,
+          528
         ],
         "id": "step6-if-low-confidence",
         "name": "IF - Low Confidence"
@@ -5679,11 +5557,12 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          5680,
-          920
+          6960,
+          320
         ],
         "id": "step6-telegram-notify-manager",
         "name": "Telegram - Notify Manager",
+        "webhookId": "00d33b2b-85f0-435b-9976-507ed8b74fd5",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -5725,8 +5604,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          5920,
-          920
+          7200,
+          320
         ],
         "id": "step6-reset-session-manager",
         "name": "HTTP Request - Reset Session (manager path)"
@@ -5742,11 +5621,12 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          6160,
-          920
+          7440,
+          320
         ],
         "id": "step6-analysis-done-manager",
         "name": "Telegram - Analysis Done (manager path)",
+        "webhookId": "21010971-1a4e-496e-88d1-bface5bcac97",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -5788,8 +5668,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          5680,
-          1352
+          6960,
+          752
         ],
         "id": "step6-reset-session-normal",
         "name": "HTTP Request - Reset Session (normal path)"
@@ -5805,11 +5685,12 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          5920,
-          1352
+          7200,
+          752
         ],
         "id": "step6-analysis-done-normal",
         "name": "Telegram - Analysis Done (normal path)",
+        "webhookId": "6dfa7052-65c3-4cd6-98a7-85b43695b977",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -5818,23 +5699,22 @@
         }
       },
       {
-        "name": "Telegram - PDF Received",
-        "type": "n8n-nodes-base.telegram",
-        "typeVersion": 1.2,
-        "position": [
-          1168,
-          1000
-        ],
-        "id": "telegram-pdf-received-001",
         "parameters": {
-          "resource": "message",
-          "operation": "sendMessage",
           "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
           "text": "📄 PDF получен, конвертирую в изображение...",
           "additionalFields": {
             "appendAttribution": false
           }
         },
+        "name": "Telegram - PDF Received",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1776,
+          192
+        ],
+        "id": "telegram-pdf-received-001",
+        "webhookId": "99e112a4-725e-4383-a148-f335b8af92fd",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -5843,20 +5723,19 @@
         }
       },
       {
+        "parameters": {
+          "resource": "file",
+          "operation": "getFile"
+        },
         "name": "Get Telegram File PDF",
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          1344,
-          1000
+          1952,
+          192
         ],
         "id": "get-telegram-file-pdf-001",
-        "parameters": {
-          "resource": "file",
-          "operation": "getFile",
-          "fileId": "={{ $('Telegram Trigger').first().json.message.document.file_id }}",
-          "additionalFields": {}
-        },
+        "webhookId": "43e984ad-0d18-4ce2-950d-3c56a059b232",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -5865,18 +5744,9 @@
         }
       },
       {
-        "name": "HTTP Request - Convert PDF",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          1536,
-          1000
-        ],
-        "id": "http-convert-pdf-001",
         "parameters": {
           "method": "POST",
           "url": "http://python-service:5000/convert-pdf",
-          "sendHeaders": false,
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -5895,17 +5765,17 @@
               }
             }
           }
-        }
-      },
-      {
-        "name": "HTTP Request - Upload Converted Plan",
+        },
+        "name": "HTTP Request - Convert PDF",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1728,
-          1000
+          2144,
+          192
         ],
-        "id": "http-upload-converted-plan-001",
+        "id": "http-convert-pdf-001"
+      },
+      {
         "parameters": {
           "method": "PUT",
           "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/bti-files/plans/{{ $('Telegram Trigger').first().json.message.chat.id }}/plan.png",
@@ -5926,20 +5796,19 @@
           "contentType": "binaryData",
           "inputDataFieldName": "data",
           "options": {}
-        }
-      },
-      {
-        "name": "HTTP Request - Download Plan for Annotation",
+        },
+        "name": "HTTP Request - Upload Converted Plan",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          2848,
-          800
+          2336,
+          192
         ],
-        "id": "http-dl-plan-annotation-001",
+        "id": "http-upload-converted-plan-001"
+      },
+      {
         "parameters": {
-          "method": "GET",
-          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/={{ $('Code - Parse Gemini').first().json.chatId }}/plan.png",
+          "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Parse Gemini').first().json.chatId + '/plan.png' }}",
           "options": {
             "response": {
               "response": {
@@ -5947,17 +5816,17 @@
               }
             }
           }
-        }
-      },
-      {
-        "name": "HTTP Request - Annotate Rooms",
+        },
+        "name": "HTTP Request - Download Plan for Annotation",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          3088,
-          800
+          4320,
+          -160
         ],
-        "id": "http-annotate-rooms-001",
+        "id": "http-dl-plan-annotation-001"
+      },
+      {
         "parameters": {
           "method": "POST",
           "url": "http://python-service:5000/annotate-rooms",
@@ -5971,7 +5840,6 @@
                 "inputDataFieldName": "data"
               },
               {
-                "parameterType": "formData",
                 "name": "rooms_json",
                 "value": "={{ JSON.stringify($('Code - Parse Gemini').first().json.rooms_json) }}"
               }
@@ -5984,29 +5852,35 @@
               }
             }
           }
-        }
+        },
+        "name": "HTTP Request - Annotate Rooms",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4560,
+          -160
+        ],
+        "id": "http-annotate-rooms-001"
       },
       {
+        "parameters": {
+          "operation": "sendPhoto",
+          "chatId": "={{ $('Code - Parse Gemini').first().json.chatId }}",
+          "binaryData": true,
+          "additionalFields": {
+            "caption": "={{ $('Code - Parse Gemini').first().json.rooms_text }}",
+            "parse_mode": "HTML"
+          }
+        },
         "name": "Telegram - Send Annotated Plan",
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          3328,
-          800
+          4800,
+          -160
         ],
         "id": "telegram-send-annotated-plan-001",
-        "parameters": {
-          "resource": "message",
-          "operation": "sendPhoto",
-          "chatId": "={{ $('Code - Parse Gemini').first().json.chatId }}",
-          "binaryData": true,
-          "binaryPropertyName": "data",
-          "additionalFields": {
-            "caption": "={{ $('Code - Parse Gemini').first().json.rooms_text }}",
-            "appendAttribution": false,
-            "parse_mode": "HTML"
-          }
-        },
+        "webhookId": "ce40d43f-d370-414c-a1d9-97b1739fbd80",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -6015,17 +5889,8 @@
         }
       },
       {
-        "name": "HTTP Request - Download Plan for Changes",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          4960,
-          1320
-        ],
-        "id": "http-dl-plan-changes-001",
         "parameters": {
-          "method": "GET",
-          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/={{ $('Code - Build Report').first().json.chatId }}/plan.png",
+          "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Build Report').first().json.chatId + '/plan.png' }}",
           "options": {
             "response": {
               "response": {
@@ -6033,17 +5898,17 @@
               }
             }
           }
-        }
-      },
-      {
-        "name": "HTTP Request - Annotate Changes",
+        },
+        "name": "HTTP Request - Download Plan for Changes",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          5200,
-          1320
+          5792,
+          528
         ],
-        "id": "http-annotate-changes-001",
+        "id": "http-dl-plan-changes-001"
+      },
+      {
         "parameters": {
           "method": "POST",
           "url": "http://python-service:5000/annotate-changes",
@@ -6057,12 +5922,10 @@
                 "inputDataFieldName": "data"
               },
               {
-                "parameterType": "formData",
                 "name": "rooms_json",
                 "value": "={{ JSON.stringify($('Supabase - Get Analysis Session').first().json.rooms_json || []) }}"
               },
               {
-                "parameterType": "formData",
                 "name": "changes",
                 "value": "={{ JSON.stringify($('Code - Parse GPT4o Response').first().json.analysis_result.changes || []) }}"
               }
@@ -6075,28 +5938,34 @@
               }
             }
           }
-        }
+        },
+        "name": "HTTP Request - Annotate Changes",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          6032,
+          528
+        ],
+        "id": "http-annotate-changes-001"
       },
       {
+        "parameters": {
+          "operation": "sendPhoto",
+          "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
+          "binaryData": true,
+          "additionalFields": {
+            "caption": "🗺 Аннотированный план с выделенными изменениями"
+          }
+        },
         "name": "Telegram - Send Annotated Changes",
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          5440,
-          1320
+          6256,
+          528
         ],
         "id": "telegram-send-annotated-changes-001",
-        "parameters": {
-          "resource": "message",
-          "operation": "sendPhoto",
-          "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
-          "binaryData": true,
-          "binaryPropertyName": "data",
-          "additionalFields": {
-            "caption": "🗺 Аннотированный план с выделенными изменениями",
-            "appendAttribution": false
-          }
-        },
+        "webhookId": "9712531c-dfcf-43cb-baf0-bc53509de057",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -6105,14 +5974,6 @@
         }
       },
       {
-        "name": "IF - Session Timeout",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [
-          340,
-          720
-        ],
-        "id": "if-session-timeout-001",
         "parameters": {
           "conditions": {
             "options": {
@@ -6136,26 +5997,33 @@
             "combinator": "and"
           },
           "options": {}
-        }
+        },
+        "name": "IF - Session Timeout",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          448,
+          112
+        ],
+        "id": "if-session-timeout-001"
       },
       {
-        "name": "Telegram - Session Expired",
-        "type": "n8n-nodes-base.telegram",
-        "typeVersion": 1.2,
-        "position": [
-          500,
-          850
-        ],
-        "id": "telegram-session-expired-001",
         "parameters": {
-          "resource": "message",
-          "operation": "sendMessage",
           "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
           "text": "⏱ Сессия устарела (более 48 часов неактивности). Отправьте /start для начала нового анализа.",
           "additionalFields": {
             "appendAttribution": false
           }
         },
+        "name": "Telegram - Session Expired",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          752,
+          96
+        ],
+        "id": "telegram-session-expired-001",
+        "webhookId": "2eef4226-27ee-45f4-af5c-dd157d119640",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -6164,14 +6032,6 @@
         }
       },
       {
-        "name": "HTTP Request - Reset Expired Session",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          700,
-          850
-        ],
-        "id": "http-reset-expired-001",
         "parameters": {
           "method": "PATCH",
           "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $('Telegram Trigger').first().json.message.chat.id }}",
@@ -6201,17 +6061,17 @@
           "rawContentType": "application/json",
           "body": "={{ JSON.stringify({ step: 'idle', updated_at: new Date().toISOString() }) }}",
           "options": {}
-        }
+        },
+        "name": "HTTP Request - Reset Expired Session",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1008,
+          96
+        ],
+        "id": "http-reset-expired-001"
       },
       {
-        "name": "IF - Gemini Error",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [
-          3010,
-          608
-        ],
-        "id": "if-gemini-error-001",
         "parameters": {
           "conditions": {
             "options": {
@@ -6235,26 +6095,33 @@
             "combinator": "and"
           },
           "options": {}
-        }
+        },
+        "name": "IF - Gemini Error",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          4080,
+          -176
+        ],
+        "id": "if-gemini-error-001"
       },
       {
-        "name": "Telegram - Gemini Error",
-        "type": "n8n-nodes-base.telegram",
-        "typeVersion": 1.2,
-        "position": [
-          3200,
-          730
-        ],
-        "id": "telegram-gemini-error-001",
         "parameters": {
-          "resource": "message",
-          "operation": "sendMessage",
           "chatId": "={{ $json.chatId }}",
           "text": "={{ '❌ Ошибка при анализе плана: ' + $json.errorMsg + '\\n\\nОтправьте /start для повторной попытки.' }}",
           "additionalFields": {
             "appendAttribution": false
           }
         },
+        "name": "Telegram - Gemini Error",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          4320,
+          -368
+        ],
+        "id": "telegram-gemini-error-001",
+        "webhookId": "f05ac83c-c547-4fdf-96c6-bc8d494045cc",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -6263,14 +6130,6 @@
         }
       },
       {
-        "name": "HTTP Request - Reset Session (Gemini Error)",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          3430,
-          730
-        ],
-        "id": "http-reset-gemini-err-001",
         "parameters": {
           "method": "PATCH",
           "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $('Telegram Trigger').first().json.message.chat.id }}",
@@ -6300,17 +6159,17 @@
           "rawContentType": "application/json",
           "body": "={{ JSON.stringify({ step: 'idle', updated_at: new Date().toISOString() }) }}",
           "options": {}
-        }
+        },
+        "name": "HTTP Request - Reset Session (Gemini Error)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4560,
+          -368
+        ],
+        "id": "http-reset-gemini-err-001"
       },
       {
-        "name": "IF - GPT4o Error",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [
-          4700,
-          1136
-        ],
-        "id": "if-gpt4o-error-001",
         "parameters": {
           "conditions": {
             "options": {
@@ -6334,26 +6193,33 @@
             "combinator": "and"
           },
           "options": {}
-        }
+        },
+        "name": "IF - GPT4o Error",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          5088,
+          512
+        ],
+        "id": "if-gpt4o-error-001"
       },
       {
-        "name": "Telegram - GPT4o Error",
-        "type": "n8n-nodes-base.telegram",
-        "typeVersion": 1.2,
-        "position": [
-          4900,
-          1300
-        ],
-        "id": "telegram-gpt4o-error-001",
         "parameters": {
-          "resource": "message",
-          "operation": "sendMessage",
           "chatId": "={{ $json.chatId }}",
           "text": "={{ '❌ Ошибка при анализе фотографий: ' + $json.errorMsg + '\\n\\nОтправьте /start для повторной попытки.' }}",
           "additionalFields": {
             "appendAttribution": false
           }
         },
+        "name": "Telegram - GPT4o Error",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          5360,
+          336
+        ],
+        "id": "telegram-gpt4o-error-001",
+        "webhookId": "2291c7fd-cbcc-427f-8dc7-d92c4b0a8870",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -6362,14 +6228,6 @@
         }
       },
       {
-        "name": "HTTP Request - Reset Session (GPT4o Error)",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          5130,
-          1300
-        ],
-        "id": "http-reset-gpt4o-err-001",
         "parameters": {
           "method": "PATCH",
           "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $('Telegram Trigger').first().json.message.chat.id }}",
@@ -6399,17 +6257,17 @@
           "rawContentType": "application/json",
           "body": "={{ JSON.stringify({ step: 'idle', updated_at: new Date().toISOString() }) }}",
           "options": {}
-        }
+        },
+        "name": "HTTP Request - Reset Session (GPT4o Error)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5568,
+          336
+        ],
+        "id": "http-reset-gpt4o-err-001"
       },
       {
-        "name": "IF - Text During Photo Collection",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [
-          256,
-          1120
-        ],
-        "id": "if-text-collecting-001",
         "parameters": {
           "conditions": {
             "options": {
@@ -6432,26 +6290,33 @@
             "combinator": "and"
           },
           "options": {}
-        }
+        },
+        "name": "IF - Text During Photo Collection",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          720,
+          1008
+        ],
+        "id": "if-text-collecting-001"
       },
       {
-        "name": "Telegram - Text During Photo Collection",
-        "type": "n8n-nodes-base.telegram",
-        "typeVersion": 1.2,
-        "position": [
-          456,
-          1120
-        ],
-        "id": "telegram-text-during-photos-001",
         "parameters": {
-          "resource": "message",
-          "operation": "sendMessage",
           "chatId": "={{ $json.chat_id }}",
           "text": "📷 Ожидаю фотографию комнаты, а не текст.\n\nПожалуйста, сделайте фото и отправьте его как файл/документ для лучшего качества.\n\nДля отмены отправьте /start.",
           "additionalFields": {
             "appendAttribution": false
           }
         },
+        "name": "Telegram - Text During Photo Collection",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1056,
+          928
+        ],
+        "id": "telegram-text-during-photos-001",
+        "webhookId": "568c25a3-78bd-447f-8d54-6ade2914433f",
         "credentials": {
           "telegramApi": {
             "id": "pf7Lmwh5V28tUCpr",
@@ -6738,17 +6603,6 @@
           [
             {
               "node": "IF - Gemini Error",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Telegram - Plan Analyzed": {
-        "main": [
-          [
-            {
-              "node": "Supabase - Save Analysis",
               "type": "main",
               "index": 0
             }
@@ -7434,18 +7288,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-22T17:19:04.327Z",
-        "id": 254,
+        "createdAt": "2026-03-22T19:26:02.754Z",
+        "id": 258,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "97ad64c9-e8bf-4b46-8108-38456e4cca06",
+        "versionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       },
       {
-        "createdAt": "2026-03-22T17:19:12.265Z",
-        "id": 255,
+        "createdAt": "2026-03-22T19:26:11.222Z",
+        "id": 259,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "97ad64c9-e8bf-4b46-8108-38456e4cca06",
+        "versionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       }
