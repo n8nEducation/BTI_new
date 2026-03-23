@@ -1816,8 +1816,8 @@
     },
     {
       "parameters": {
-        "chatId": "={{ $json.chatId }}",
-        "text": "={{ $json.report_text }}",
+        "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
+        "text": "={{ $('Code - Build Report').first().json.report_text }}",
         "additionalFields": {
           "appendAttribution": false,
           "parse_mode": "HTML"
@@ -1851,7 +1851,7 @@
           "conditions": [
             {
               "id": "step6-low-conf-cond",
-              "leftValue": "={{ $('Code - Build Report').item.json.confidence }}",
+              "leftValue": "={{ $('Code - Build Report').first().json.confidence }}",
               "rightValue": 0.6,
               "operator": {
                 "type": "number",
@@ -1875,7 +1875,7 @@
     {
       "parameters": {
         "chatId": "1106349687",
-        "text": "={{ $('Code - Build Report').item.json.manager_text }}",
+        "text": "={{ $('Code - Build Report').first().json.manager_text }}",
         "additionalFields": {
           "appendAttribution": false,
           "parse_mode": "HTML"
@@ -1939,7 +1939,7 @@
     },
     {
       "parameters": {
-        "chatId": "={{ $('Code - Build Report').item.json.chatId }}",
+        "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
         "text": "✅ Анализ завершён. Для нового анализа отправьте /start",
         "additionalFields": {
           "appendAttribution": false
@@ -2003,7 +2003,7 @@
     },
     {
       "parameters": {
-        "chatId": "={{ $('Code - Build Report').item.json.chatId }}",
+        "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
         "text": "✅ Анализ завершён. Для нового анализа отправьте /start",
         "additionalFields": {
           "appendAttribution": false
@@ -5525,7 +5525,7 @@
             "conditions": [
               {
                 "id": "step6-low-conf-cond",
-                "leftValue": "={{ $('Code - Build Report').item.json.confidence }}",
+                "leftValue": "={{ $('Code - Build Report').first().json.confidence }}",
                 "rightValue": 0.6,
                 "operator": {
                   "type": "number",
@@ -5549,7 +5549,7 @@
       {
         "parameters": {
           "chatId": "1106349687",
-          "text": "={{ $('Code - Build Report').item.json.manager_text }}",
+          "text": "={{ $('Code - Build Report').first().json.manager_text }}",
           "additionalFields": {
             "appendAttribution": false,
             "parse_mode": "HTML"
@@ -5613,7 +5613,7 @@
       },
       {
         "parameters": {
-          "chatId": "={{ $('Code - Build Report').item.json.chatId }}",
+          "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
           "text": "✅ Анализ завершён. Для нового анализа отправьте /start",
           "additionalFields": {
             "appendAttribution": false
@@ -5677,7 +5677,7 @@
       },
       {
         "parameters": {
-          "chatId": "={{ $('Code - Build Report').item.json.chatId }}",
+          "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
           "text": "✅ Анализ завершён. Для нового анализа отправьте /start",
           "additionalFields": {
             "appendAttribution": false
