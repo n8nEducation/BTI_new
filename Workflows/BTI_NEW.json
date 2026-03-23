@@ -2146,7 +2146,7 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Parse Gemini').first().json.chatId + '/plan.png' }}",
+        "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Parse Gemini').first().json.chatId + '/plan.png?t=' + Date.now() }}",
         "options": {
           "response": {
             "response": {
@@ -2228,7 +2228,7 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Build Report').first().json.chatId + '/plan.png' }}",
+        "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Build Report').first().json.chatId + '/plan.png?t=' + Date.now() }}",
         "options": {
           "response": {
             "response": {
@@ -5820,7 +5820,7 @@
       },
       {
         "parameters": {
-          "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Parse Gemini').first().json.chatId + '/plan.png' }}",
+          "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Parse Gemini').first().json.chatId + '/plan.png?t=' + Date.now() }}",
           "options": {
             "response": {
               "response": {
@@ -5902,7 +5902,7 @@
       },
       {
         "parameters": {
-          "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Build Report').first().json.chatId + '/plan.png' }}",
+          "url": "={{ 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + $('Code - Build Report').first().json.chatId + '/plan.png?t=' + Date.now() }}",
           "options": {
             "response": {
               "response": {
