@@ -8,7 +8,14 @@ app = Flask(__name__)
 
 
 def region_to_pixels(region, width, height):
-    """Convert region_percent (x, y, w, h as 0–100) to pixel box."""
+    """Convert region_percent to pixel box.
+    Supports two formats:
+      - {x1, y1, x2, y2} in range 0.0–1.0  (bounding box)
+      - {x, y, w, h}     in range 0–100     (position + size)
+    """
+    if 'x1' in region:
+        return (int(region['x1'] * width), int(region['y1'] * height),
+                int(region['x2'] * width), int(region['y2'] * height))
     x = int(region.get('x', 0) / 100 * width)
     y = int(region.get('y', 0) / 100 * height)
     w = int(region.get('w', 10) / 100 * width)
@@ -97,8 +104,10 @@ def annotate_changes():
             return {'error': f'{field} is required'}, 400
 
     img = Image.open(request.files['image']).convert('RGBA')
-    rooms = json.loads(request.form['rooms_json'])
-    changes = json.loads(request.form['changes'])
+    rooms_raw = json.loads(request.form['rooms_json'])
+    rooms = json.loads(rooms_raw) if isinstance(rooms_raw, str) else rooms_raw
+    changes_raw = json.loads(request.form['changes'])
+    changes = json.loads(changes_raw) if isinstance(changes_raw, str) else changes_raw
     width, height = img.size
 
     room_map = {r['id']: r for r in rooms if 'id' in r}
