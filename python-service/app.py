@@ -28,7 +28,10 @@ def convert_pdf():
     pdf_bytes = request.files['file'].read()
     if not pdf_bytes:
         return {'error': 'Empty file'}, 400
-    images = convert_from_bytes(pdf_bytes, first_page=1, last_page=1, dpi=200)
+    try:
+        images = convert_from_bytes(pdf_bytes, first_page=1, last_page=1, dpi=200, use_pdftocairo=True)
+    except Exception:
+        images = convert_from_bytes(pdf_bytes, first_page=1, last_page=1, dpi=200)
     if not images:
         return {'error': 'Failed to convert PDF'}, 500
     img_io = io.BytesIO()
