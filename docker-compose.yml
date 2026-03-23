@@ -1,19 +1,15 @@
-# Добавить этот сервис в docker-compose.yml на VPS рядом с n8n
-# Пример минимальной конфигурации:
-#
-# services:
-#   n8n:
-#     ...  (существующий сервис)
-#
-#   python-service:
-#     build: ./python-service
-#     restart: unless-stopped
-#     networks:
-#       - n8n_network   # та же сеть, что у n8n — для доступа по имени сервиса
+version: '3.8'
 
 services:
   python-service:
     build: ./python-service
+    container_name: python-service
     restart: unless-stopped
     expose:
       - "5000"
+    networks:
+      - n8n_default
+
+networks:
+  n8n_default:
+    external: true
