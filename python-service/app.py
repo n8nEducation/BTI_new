@@ -243,73 +243,30 @@ def annotate_changes():
         bg_color   = label_bg.get(cls, (150, 150, 150, 220))
         line_w = max(4, int(min(width, height) * 0.008))  # ~0.8% of shorter side
 
-        import math
-
-        # --- Determine which wall segment to highlight ---
-        wall_seg = None  # (sx1, sy1, sx2, sy2) in pixels
-
-        # Priority 1: shared edge between two affected rooms (computed from polygons)
+        # Draw thick outline along all affected room boundaries
         affected_ids = change.get('affected_room_ids') or [change.get('room_id', '')]
-        if len(affected_ids) >= 2:
-            poly1_raw = room_map.get(affected_ids[0], {}).get('polygon', [])
-            poly2_raw = room_map.get(affected_ids[1], {}).get('polygon', [])
-            if poly1_raw and poly2_raw:
-                wall_seg = find_shared_edge(poly1_raw, poly2_raw, width, height)
-
-        # Priority 2: wall_segments from GPT (only if no degenerate values)
-        if wall_seg is None:
-            segments = change.get('wall_segments') or []
-            for seg in segments:
-                if len(seg) != 4:
-                    continue
-                sx1 = int(seg[0] * width)
-                sy1 = int(seg[1] * height)
-                sx2 = int(seg[2] * width)
-                sy2 = int(seg[3] * height)
-                if abs(sx2 - sx1) > width * 0.6 and abs(sy2 - sy1) > height * 0.6:
-                    continue
-                wall_seg = (sx1, sy1, sx2, sy2)
-                break
-
-        # Priority 3: fallback — outline the primary room polygon
-        if wall_seg is None:
-            room = room_map.get(change.get('room_id', ''), {})
-            room_poly = region_to_polygon(
+        badge_pos = None
+        drawn = False
+        for room_id in affected_ids:
+            room = room_map.get(room_id, {})
+            poly = region_to_polygon(
                 room.get('polygon') or room.get('region_percent', {}), width, height
             )
-            if room_poly:
-                r_c, g_c, b_c, _ = line_color
-                draw.polygon(room_poly, fill=(r_c, g_c, b_c, 40), outline=line_color)
-                mx, my = polygon_centroid(room_poly)
-                r = line_w * 3
-                draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
-                draw.text((mx - r // 2, my - r), str(badge_num), fill=(255, 255, 255, 255))
-                badge_num += 1
-            continue
+            if not poly:
+                continue
+            # Draw each edge of the polygon as a thick colored line (no fill)
+            for i in range(len(poly)):
+                draw.line([poly[i], poly[(i + 1) % len(poly)]], fill=line_color, width=line_w)
+            if badge_pos is None:
+                badge_pos = polygon_centroid(poly)
+            drawn = True
 
-        # Draw highlight band over the wall segment
-        sx1, sy1, sx2, sy2 = wall_seg
-        dx, dy = sx2 - sx1, sy2 - sy1
-        seg_len = math.hypot(dx, dy) or 1
-        px, py = -dy / seg_len, dx / seg_len
-        hw = line_w * 4
-        r_c, g_c, b_c, _ = line_color
-        band = [
-            (int(sx1 + px * hw), int(sy1 + py * hw)),
-            (int(sx2 + px * hw), int(sy2 + py * hw)),
-            (int(sx2 - px * hw), int(sy2 - py * hw)),
-            (int(sx1 - px * hw), int(sy1 - py * hw)),
-        ]
-        draw.polygon(band, fill=(r_c, g_c, b_c, 110))
-        draw.polygon(band, outline=(r_c, g_c, b_c, 255))
-        draw.line([(sx1, sy1), (sx2, sy2)], fill=line_color, width=max(2, line_w // 2))
-
-        mx = int((sx1 + sx2) / 2)
-        my = int((sy1 + sy2) / 2)
-        r = line_w * 3
-        draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
-        draw.text((mx - r // 2, my - r), str(badge_num), fill=(255, 255, 255, 255))
-        badge_num += 1
+        if drawn and badge_pos:
+            mx, my = badge_pos
+            r = line_w * 3
+            draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
+            draw.text((mx - r // 2, my - r), str(badge_num), fill=(255, 255, 255, 255))
+            badge_num += 1
 
     result = Image.alpha_composite(img, overlay).convert('RGB')
     img_io = io.BytesIO()
