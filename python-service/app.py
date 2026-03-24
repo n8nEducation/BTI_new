@@ -299,9 +299,6 @@ def annotate_changes():
             if abs(sx2 - sx1) > width * 0.6 and abs(sy2 - sy1) > height * 0.6:
                 continue
 
-            # Snap to nearest actual wall line on the plan
-            sx1, sy1, sx2, sy2 = snap_to_wall(img_cv_ref, sx1, sy1, sx2, sy2)
-
             import math
             dx, dy = sx2 - sx1, sy2 - sy1
             seg_len = math.hypot(dx, dy) or 1
