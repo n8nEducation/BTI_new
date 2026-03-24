@@ -183,13 +183,17 @@ def annotate_rooms():
         if not poly:
             continue
 
-        # Semi-transparent blue fill + border
-        draw.polygon(poly, fill=(59, 130, 246, 70), outline=(59, 130, 246, 200))
-
-        # Room name label at centroid
-        label = room.get('name', f'Помещение {i + 1}')
         cx, cy = polygon_centroid(poly)
-        draw.text((cx, cy), label, fill=(0, 0, 100, 230))
+        r = max(12, int(min(width, height) * 0.018))
+
+        # Numbered circle badge at room centroid
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(59, 130, 246, 220))
+        num = str(i + 1)
+        draw.text((cx - r // 2, cy - r // 2), num, fill=(255, 255, 255, 255))
+
+        # Room name to the right of the badge
+        label = room.get('name', f'Помещение {i + 1}')
+        draw.text((cx + r + 4, cy - r // 2), label, fill=(0, 0, 100, 230))
 
     result = Image.alpha_composite(img, overlay).convert('RGB')
     img_io = io.BytesIO()
