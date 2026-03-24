@@ -3,6 +3,7 @@ from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw
 import io
 import json
+import math
 import cv2
 import numpy as np
 
@@ -33,6 +34,16 @@ def region_to_polygon(region, width, height):
     return []
 
 
+def region_to_polygon_raw(region):
+    """Return polygon points as normalized [[x,y], ...] in 0.0-1.0, or None."""
+    if isinstance(region, list) and region:
+        return region
+    if isinstance(region, dict) and 'x1' in region:
+        return [[region['x1'], region['y1']], [region['x2'], region['y1']],
+                [region['x2'], region['y2']], [region['x1'], region['y2']]]
+    return None
+
+
 def polygon_centroid(pts):
     """Return (cx, cy) centroid of a polygon."""
     cx = sum(p[0] for p in pts) // len(pts)
@@ -42,9 +53,8 @@ def polygon_centroid(pts):
 
 def find_shared_edge(poly1, poly2, width, height, tol=0.05):
     """Find the shared boundary segment between two room polygons.
+    Expects normalized 0.0-1.0 polygon points.
     Returns pixel (x1,y1,x2,y2) of the longest matching edge, or None."""
-    import math
-
     def pt_dist(a, b):
         return math.hypot(a[0] - b[0], a[1] - b[1])
 
@@ -64,6 +74,53 @@ def find_shared_edge(poly1, poly2, width, height, tol=0.05):
                     best = (int(a1[0] * width), int(a1[1] * height),
                             int(b1[0] * width), int(b1[1] * height))
     return best
+
+
+def find_closest_edge_pair(poly1, poly2):
+    """Find the closest pair of edges (by midpoint distance) between two normalized polygons.
+    Returns (a1, b1, a2, b2) or None."""
+    best = None
+    best_d = float('inf')
+    for i in range(len(poly1)):
+        a1, b1 = poly1[i], poly1[(i + 1) % len(poly1)]
+        m1 = ((a1[0] + b1[0]) / 2, (a1[1] + b1[1]) / 2)
+        for j in range(len(poly2)):
+            a2, b2 = poly2[j], poly2[(j + 1) % len(poly2)]
+            m2 = ((a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2)
+            d = math.hypot(m1[0] - m2[0], m1[1] - m2[1])
+            if d < best_d:
+                best_d = d
+                best = (a1, b1, a2, b2)
+    return best
+
+
+def find_nearest_hough_line(img_cv, qx, qy, radius=80):
+    """Find the Hough line segment closest to pixel (qx, qy) within radius px.
+    Returns (x1, y1, x2, y2) or None."""
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+    _, binary = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY_INV)
+    lines = cv2.HoughLinesP(binary, 1, np.pi / 180, threshold=40,
+                             minLineLength=20, maxLineGap=15)
+    if lines is None:
+        return None
+
+    def dist_pt_seg(px, py, x1, y1, x2, y2):
+        dx, dy = x2 - x1, y2 - y1
+        if dx == 0 and dy == 0:
+            return math.hypot(px - x1, py - y1)
+        t = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)))
+        return math.hypot(px - x1 - t * dx, py - y1 - t * dy)
+
+    best_line = None
+    best_d = float('inf')
+    for ln in lines:
+        x1, y1, x2, y2 = ln[0]
+        d = dist_pt_seg(qx, qy, x1, y1, x2, y2)
+        if d < best_d:
+            best_d = d
+            best_line = (x1, y1, x2, y2)
+
+    return best_line if best_d <= radius else None
 
 
 @app.route('/health', methods=['GET'])
@@ -209,7 +266,11 @@ def annotate_changes():
     Input:  multipart/form-data  { image: <PNG binary>, rooms_json: <JSON string>, changes: <JSON string> }
     Output: PNG binary
     Colors: red = illegal, yellow = requires_approval
-    Each change may have wall_segments: [[x1,y1,x2,y2], ...] in 0.0-1.0 coordinates.
+
+    Strategy per change:
+      - 2 rooms: find shared edge (tol=0.08) or closest edge pair + Hough snap
+      - 1 room + hint_point: snap nearest Hough line to hint_point
+      - fallback: draw room polygon outline
     """
     if 'image' not in request.files:
         return {'error': 'No image provided'}, 400
@@ -217,7 +278,11 @@ def annotate_changes():
         if field not in request.form:
             return {'error': f'{field} is required'}, 400
 
-    img = Image.open(request.files['image']).convert('RGBA')
+    img_bytes = request.files['image'].read()
+    img = Image.open(io.BytesIO(img_bytes)).convert('RGBA')
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
     rooms_raw = json.loads(request.form['rooms_json'])
     rooms = json.loads(rooms_raw) if isinstance(rooms_raw, str) else rooms_raw
     changes_raw = json.loads(request.form['changes'])
@@ -238,34 +303,78 @@ def annotate_changes():
 
     badge_num = 1
     room_map = {r.get('id', ''): r for r in rooms}
+    hough_radius = int(min(width, height) * 0.08)
+
     for change in changes:
         cls = change.get('classification', 'legal')
         if cls == 'legal':
-            continue  # nothing to mark for legal changes
+            continue
 
         line_color = line_colors.get(cls, (150, 150, 150, 255))
         bg_color   = label_bg.get(cls, (150, 150, 150, 220))
-        line_w = max(4, int(min(width, height) * 0.008))  # ~0.8% of shorter side
+        line_w = max(4, int(min(width, height) * 0.008))
 
-        # Draw thick outline along all affected room boundaries
         affected_ids = change.get('affected_room_ids') or [change.get('room_id', '')]
-        badge_pos = None
-        drawn = False
-        for room_id in affected_ids:
-            room = room_map.get(room_id, {})
-            poly = region_to_polygon(
-                room.get('polygon') or room.get('region_percent', {}), width, height
-            )
-            if not poly:
-                continue
-            # Draw each edge of the polygon as a thick colored line (no fill)
-            for i in range(len(poly)):
-                draw.line([poly[i], poly[(i + 1) % len(poly)]], fill=line_color, width=line_w)
-            if badge_pos is None:
-                badge_pos = polygon_centroid(poly)
-            drawn = True
+        hint_point = change.get('hint_point')  # [x, y] normalized, or None
 
-        if drawn and badge_pos:
+        drawn_segment = None  # (x1, y1, x2, y2) pixels
+        badge_pos = None
+
+        if len(affected_ids) >= 2:
+            # Wall between two rooms: try shared edge, then closest edge pair + Hough snap
+            r1 = room_map.get(affected_ids[0], {})
+            r2 = room_map.get(affected_ids[1], {})
+            raw1 = region_to_polygon_raw(r1.get('polygon') or r1.get('region_percent', {}))
+            raw2 = region_to_polygon_raw(r2.get('polygon') or r2.get('region_percent', {}))
+            if raw1 and raw2:
+                seg = find_shared_edge(raw1, raw2, width, height, tol=0.08)
+                if seg:
+                    drawn_segment = seg
+                else:
+                    pair = find_closest_edge_pair(raw1, raw2)
+                    if pair:
+                        a1, b1, a2, b2 = pair
+                        cx = ((a1[0] + b1[0] + a2[0] + b2[0]) / 4) * width
+                        cy = ((a1[1] + b1[1] + a2[1] + b2[1]) / 4) * height
+                        snapped = find_nearest_hough_line(img_cv, cx, cy, hough_radius)
+                        if snapped:
+                            drawn_segment = snapped
+                        else:
+                            # Fallback: midline between the two edges
+                            drawn_segment = (
+                                int((a1[0] + a2[0]) / 2 * width),
+                                int((a1[1] + a2[1]) / 2 * height),
+                                int((b1[0] + b2[0]) / 2 * width),
+                                int((b1[1] + b2[1]) / 2 * height),
+                            )
+
+        if drawn_segment is None and hint_point:
+            # Single room with hint: snap to nearest Hough line near hint_point
+            hx = hint_point[0] * width
+            hy = hint_point[1] * height
+            snapped = find_nearest_hough_line(img_cv, hx, hy, hough_radius)
+            if snapped:
+                drawn_segment = snapped
+
+        if drawn_segment is not None:
+            x1s, y1s, x2s, y2s = drawn_segment
+            draw.line([(x1s, y1s), (x2s, y2s)], fill=line_color, width=line_w * 2)
+            badge_pos = ((x1s + x2s) // 2, (y1s + y2s) // 2)
+        else:
+            # Fallback: draw room polygon outline
+            for room_id in affected_ids:
+                room = room_map.get(room_id, {})
+                poly = region_to_polygon(
+                    room.get('polygon') or room.get('region_percent', {}), width, height
+                )
+                if not poly:
+                    continue
+                for i in range(len(poly)):
+                    draw.line([poly[i], poly[(i + 1) % len(poly)]], fill=line_color, width=line_w)
+                if badge_pos is None:
+                    badge_pos = polygon_centroid(poly)
+
+        if badge_pos:
             mx, my = badge_pos
             r = line_w * 3
             draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
