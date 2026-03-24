@@ -34,16 +34,6 @@ def region_to_polygon(region, width, height):
     return []
 
 
-def region_to_polygon_raw(region):
-    """Return polygon points as normalized [[x,y], ...] in 0.0-1.0, or None."""
-    if isinstance(region, list) and region:
-        return region
-    if isinstance(region, dict) and 'x1' in region:
-        return [[region['x1'], region['y1']], [region['x2'], region['y1']],
-                [region['x2'], region['y2']], [region['x1'], region['y2']]]
-    return None
-
-
 def polygon_centroid(pts):
     """Return (cx, cy) centroid of a polygon."""
     cx = sum(p[0] for p in pts) // len(pts)
@@ -51,52 +41,82 @@ def polygon_centroid(pts):
     return cx, cy
 
 
-def find_shared_edge(poly1, poly2, width, height, tol=0.05):
-    """Find the shared boundary segment between two room polygons.
-    Expects normalized 0.0-1.0 polygon points.
-    Returns pixel (x1,y1,x2,y2) of the longest matching edge, or None."""
-    def pt_dist(a, b):
-        return math.hypot(a[0] - b[0], a[1] - b[1])
+def find_wall_between_centroids(img_cv, c1, c2, strip_fraction=0.15, min_cos_perp=0.5):
+    """Find the wall between two rooms using centroid-based strip search.
 
-    best, best_len = None, 0
-    for i in range(len(poly1)):
-        a1 = poly1[i]
-        b1 = poly1[(i + 1) % len(poly1)]
-        for j in range(len(poly2)):
-            a2 = poly2[j]
-            b2 = poly2[(j + 1) % len(poly2)]
-            match = (pt_dist(a1, a2) < tol and pt_dist(b1, b2) < tol) or \
-                    (pt_dist(a1, b2) < tol and pt_dist(b1, a2) < tol)
-            if match:
-                seg_len = pt_dist(a1, b1)
-                if seg_len > best_len:
-                    best_len = seg_len
-                    best = (int(a1[0] * width), int(a1[1] * height),
-                            int(b1[0] * width), int(b1[1] * height))
-    return best
+    Algorithm:
+      1. C1→C2 defines the axis between room centres.
+      2. Search all Hough segments whose midpoint lies within a strip of
+         width ±(strip_fraction * |C1C2|) around the C1→C2 line, and
+         whose midpoint projection falls between C1 and C2.
+      3. Among candidates, keep only those roughly perpendicular to C1→C2
+         (cos of angle with perpendicular direction ≥ min_cos_perp).
+      4. Score by: distance of midpoint from mid(C1,C2) + perpendicularity penalty.
+         Return the best-scoring segment.
 
+    c1, c2: pixel (x, y) centroids.
+    Returns (x1, y1, x2, y2) or None.
+    """
+    dx = c2[0] - c1[0]
+    dy = c2[1] - c1[1]
+    L = math.hypot(dx, dy)
+    if L < 1:
+        return None
 
-def find_closest_edge_pair(poly1, poly2):
-    """Find the closest pair of edges (by midpoint distance) between two normalized polygons.
-    Returns (a1, b1, a2, b2) or None."""
-    best = None
-    best_d = float('inf')
-    for i in range(len(poly1)):
-        a1, b1 = poly1[i], poly1[(i + 1) % len(poly1)]
-        m1 = ((a1[0] + b1[0]) / 2, (a1[1] + b1[1]) / 2)
-        for j in range(len(poly2)):
-            a2, b2 = poly2[j], poly2[(j + 1) % len(poly2)]
-            m2 = ((a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2)
-            d = math.hypot(m1[0] - m2[0], m1[1] - m2[1])
-            if d < best_d:
-                best_d = d
-                best = (a1, b1, a2, b2)
-    return best
+    ux, uy = dx / L, dy / L   # unit vector C1→C2
+    strip_w = L * strip_fraction
+
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+    _, binary = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY_INV)
+    lines = cv2.HoughLinesP(binary, 1, np.pi / 180, threshold=40,
+                             minLineLength=20, maxLineGap=15)
+    if lines is None:
+        return None
+
+    best_line = None
+    best_score = float('inf')
+
+    for ln in lines:
+        x1, y1, x2, y2 = ln[0]
+        mx, my = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+
+        vmx, vmy = mx - c1[0], my - c1[1]
+
+        # Perpendicular distance from midpoint to the infinite C1→C2 line
+        dist_perp = abs(vmx * uy - vmy * ux)
+        if dist_perp > strip_w:
+            continue
+
+        # Projection of midpoint along C1→C2; must lie between C1 and C2
+        proj_along = vmx * ux + vmy * uy
+        if proj_along < -L * 0.1 or proj_along > L * 1.1:
+            continue
+
+        # Check that this Hough segment is roughly perpendicular to C1→C2.
+        # Perpendicular direction to C1→C2 is (-uy, ux).
+        hdx, hdy = x2 - x1, y2 - y1
+        hL = math.hypot(hdx, hdy)
+        if hL < 1:
+            continue
+        cos_perp = abs(hdx / hL * (-uy) + hdy / hL * ux)
+        if cos_perp < min_cos_perp:
+            continue
+
+        # Score: closeness to centre of C1→C2 + perpendicularity deviation
+        dist_from_center = abs(proj_along - L / 2.0)
+        score = dist_from_center + (1.0 - cos_perp) * L
+
+        if score < best_score:
+            best_score = score
+            best_line = (x1, y1, x2, y2)
+
+    return best_line
 
 
 def find_nearest_hough_line(img_cv, qx, qy, radius=80):
     """Find the Hough line segment closest to pixel (qx, qy) within radius px.
-    Returns (x1, y1, x2, y2) or None."""
+    Returns (x1, y1, x2, y2) or None.
+    """
     gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY_INV)
     lines = cv2.HoughLinesP(binary, 1, np.pi / 180, threshold=40,
@@ -151,7 +171,6 @@ def convert_pdf():
 def crop_plan():
     """
     Finds the largest closed contour (apartment outline) and returns a cropped image.
-    After cropping, plan occupies 100% of the frame — GPT coordinates 0.0-1.0 map to real walls.
     Input:  multipart/form-data { image: <PNG binary> }
     Output: PNG binary (cropped)
     """
@@ -167,25 +186,17 @@ def crop_plan():
 
     h, w = img_cv.shape[:2]
     gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-
-    # Threshold: floor plans are usually dark lines on white background
     _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
-
-    # Dilate to connect broken lines
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     dilated = cv2.dilate(thresh, kernel, iterations=3)
-
-    # Find external contours
     contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if not contours:
-        # Fallback: return original
         img_io = io.BytesIO(img_bytes)
         img_io.seek(0)
         return send_file(img_io, mimetype='image/png', download_name='cropped_plan.png')
 
-    # Pick the largest contour by area, ignoring tiny noise
-    min_area = (w * h) * 0.05  # at least 5% of image
+    min_area = (w * h) * 0.05
     valid = [c for c in contours if cv2.contourArea(c) >= min_area]
     if not valid:
         img_io = io.BytesIO(img_bytes)
@@ -194,8 +205,6 @@ def crop_plan():
 
     largest = max(valid, key=cv2.contourArea)
     x, y, bw, bh = cv2.boundingRect(largest)
-
-    # Add margin (1% of each dimension)
     margin_x = max(10, int(w * 0.01))
     margin_y = max(10, int(h * 0.01))
     x1 = max(0, x - margin_x)
@@ -203,7 +212,6 @@ def crop_plan():
     x2 = min(w, x + bw + margin_x)
     y2 = min(h, y + bh + margin_y)
 
-    # Sanity check: cropped area must be at least 30% of original
     if (x2 - x1) * (y2 - y1) < w * h * 0.30:
         img_io = io.BytesIO(img_bytes)
         img_io.seek(0)
@@ -243,12 +251,10 @@ def annotate_rooms():
         cx, cy = polygon_centroid(poly)
         r = max(12, int(min(width, height) * 0.018))
 
-        # Numbered circle badge at room centroid
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(59, 130, 246, 220))
         num = str(i + 1)
         draw.text((cx - r // 2, cy - r // 2), num, fill=(255, 255, 255, 255))
 
-        # Room name to the right of the badge
         label = room.get('name', f'Помещение {i + 1}')
         draw.text((cx + r + 4, cy - r // 2), label, fill=(0, 0, 100, 230))
 
@@ -268,7 +274,7 @@ def annotate_changes():
     Colors: red = illegal, yellow = requires_approval
 
     Strategy per change:
-      - 2 rooms: find shared edge (tol=0.08) or closest edge pair + Hough snap
+      - 2 rooms: find wall via centroid-to-centroid strip search + Hough
       - 1 room + hint_point: snap nearest Hough line to hint_point
       - fallback: draw room polygon outline
     """
@@ -321,40 +327,21 @@ def annotate_changes():
         badge_pos = None
 
         if len(affected_ids) >= 2:
-            # Wall between two rooms: try shared edge, then closest edge pair + Hough snap
+            # Wall between two rooms: line C1→C2, Hough search in the strip
             r1 = room_map.get(affected_ids[0], {})
             r2 = room_map.get(affected_ids[1], {})
-            raw1 = region_to_polygon_raw(r1.get('polygon') or r1.get('region_percent', {}))
-            raw2 = region_to_polygon_raw(r2.get('polygon') or r2.get('region_percent', {}))
-            if raw1 and raw2:
-                seg = find_shared_edge(raw1, raw2, width, height, tol=0.08)
-                if seg:
-                    drawn_segment = seg
-                else:
-                    pair = find_closest_edge_pair(raw1, raw2)
-                    if pair:
-                        a1, b1, a2, b2 = pair
-                        cx = ((a1[0] + b1[0] + a2[0] + b2[0]) / 4) * width
-                        cy = ((a1[1] + b1[1] + a2[1] + b2[1]) / 4) * height
-                        snapped = find_nearest_hough_line(img_cv, cx, cy, hough_radius)
-                        if snapped:
-                            drawn_segment = snapped
-                        else:
-                            # Fallback: midline between the two edges
-                            drawn_segment = (
-                                int((a1[0] + a2[0]) / 2 * width),
-                                int((a1[1] + a2[1]) / 2 * height),
-                                int((b1[0] + b2[0]) / 2 * width),
-                                int((b1[1] + b2[1]) / 2 * height),
-                            )
+            poly1 = region_to_polygon(r1.get('polygon') or r1.get('region_percent', {}), width, height)
+            poly2 = region_to_polygon(r2.get('polygon') or r2.get('region_percent', {}), width, height)
+            if poly1 and poly2:
+                c1 = polygon_centroid(poly1)
+                c2 = polygon_centroid(poly2)
+                drawn_segment = find_wall_between_centroids(img_cv, c1, c2)
 
         if drawn_segment is None and hint_point:
-            # Single room with hint: snap to nearest Hough line near hint_point
+            # Single-room change with hint: snap nearest Hough line to hint_point
             hx = hint_point[0] * width
             hy = hint_point[1] * height
-            snapped = find_nearest_hough_line(img_cv, hx, hy, hough_radius)
-            if snapped:
-                drawn_segment = snapped
+            drawn_segment = find_nearest_hough_line(img_cv, hx, hy, hough_radius)
 
         if drawn_segment is not None:
             x1s, y1s, x2s, y2s = drawn_segment
