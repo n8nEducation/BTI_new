@@ -40,6 +40,54 @@ def polygon_centroid(pts):
     return cx, cy
 
 
+def snap_to_wall(img_cv, sx1, sy1, sx2, sy2):
+    """Snap a GPT segment to the nearest actual wall line detected by HoughLinesP.
+    Returns (sx1, sy1, sx2, sy2) — snapped or original if no confident match."""
+    import math
+    h, w = img_cv.shape[:2]
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
+
+    # Search radius: 8% of shorter side, at least 30px
+    radius = max(30, int(min(w, h) * 0.08))
+
+    x_min = max(0, min(sx1, sx2) - radius)
+    x_max = min(w, max(sx1, sx2) + radius)
+    y_min = max(0, min(sy1, sy2) - radius)
+    y_max = min(h, max(sy1, sy2) + radius)
+
+    if x_max - x_min < 5 or y_max - y_min < 5:
+        return sx1, sy1, sx2, sy2
+
+    roi = thresh[y_min:y_max, x_min:x_max]
+    min_len = max(10, int(math.hypot(sx2 - sx1, sy2 - sy1) * 0.3))
+    lines = cv2.HoughLinesP(roi, 1, np.pi / 180, threshold=15,
+                             minLineLength=min_len, maxLineGap=20)
+    if lines is None:
+        return sx1, sy1, sx2, sy2
+
+    seg_angle = math.atan2(sy2 - sy1, sx2 - sx1)
+    seg_mx, seg_my = (sx1 + sx2) / 2, (sy1 + sy2) / 2
+
+    best, best_score = None, float('inf')
+    for ln in lines:
+        lx1, ly1, lx2, ly2 = ln[0]
+        la = math.atan2(ly2 - ly1, lx2 - lx1)
+        angle_diff = abs(seg_angle - la) % math.pi
+        angle_diff = min(angle_diff, math.pi - angle_diff)
+        dist = math.hypot(seg_mx - ((lx1 + lx2) / 2 + x_min),
+                          seg_my - ((ly1 + ly2) / 2 + y_min))
+        score = angle_diff * 300 + dist
+        if score < best_score:
+            best_score = score
+            best = (lx1 + x_min, ly1 + y_min, lx2 + x_min, ly2 + y_min)
+
+    # Accept snap only if close enough and angle matches
+    if best and best_score < radius * 2:
+        return best
+    return sx1, sy1, sx2, sy2
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return {'status': 'ok'}
@@ -194,6 +242,9 @@ def annotate_changes():
     changes = json.loads(changes_raw) if isinstance(changes_raw, str) else changes_raw
     width, height = img.size
 
+    # OpenCV reference for wall snapping (RGB→BGR)
+    img_cv_ref = cv2.cvtColor(np.array(img.convert('RGB')), cv2.COLOR_RGB2BGR)
+
     line_colors = {
         'illegal':           (220, 38,  38,  255),   # red
         'requires_approval': (217, 119, 6,   255),   # amber
@@ -248,20 +299,29 @@ def annotate_changes():
             if abs(sx2 - sx1) > width * 0.6 and abs(sy2 - sy1) > height * 0.6:
                 continue
 
-            draw.line([(sx1, sy1), (sx2, sy2)], fill=line_color, width=line_w)
+            # Snap to nearest actual wall line on the plan
+            sx1, sy1, sx2, sy2 = snap_to_wall(img_cv_ref, sx1, sy1, sx2, sy2)
 
-            # Short perpendicular ticks at endpoints (like a wall bracket)
             import math
             dx, dy = sx2 - sx1, sy2 - sy1
-            length = math.hypot(dx, dy) or 1
-            px, py = -dy / length, dx / length  # perpendicular unit vector
-            tick = line_w * 2
-            for ex, ey in [(sx1, sy1), (sx2, sy2)]:
-                draw.line(
-                    [(int(ex + px * tick), int(ey + py * tick)),
-                     (int(ex - px * tick), int(ey - py * tick))],
-                    fill=line_color, width=line_w
-                )
+            seg_len = math.hypot(dx, dy) or 1
+            px, py = -dy / seg_len, dx / seg_len  # perpendicular unit vector
+
+            # Wide semi-transparent highlight band (like a marker pen over the wall)
+            hw = line_w * 4  # half-width of the highlight band
+            r_c, g_c, b_c, _ = line_color
+            band = [
+                (int(sx1 + px * hw), int(sy1 + py * hw)),
+                (int(sx2 + px * hw), int(sy2 + py * hw)),
+                (int(sx2 - px * hw), int(sy2 - py * hw)),
+                (int(sx1 - px * hw), int(sy1 - py * hw)),
+            ]
+            draw.polygon(band, fill=(r_c, g_c, b_c, 110))   # semi-transparent fill
+            draw.polygon(band, outline=(r_c, g_c, b_c, 255)) # solid border
+
+            # Solid center line for precision
+            draw.line([(sx1, sy1), (sx2, sy2)], fill=line_color, width=max(2, line_w // 2))
+
             drawn = True
 
         if drawn:
