@@ -384,6 +384,18 @@ def annotate_changes():
             draw.line([(x1s, y1s), (x2s, y2s)], fill=line_color, width=line_w * 2)
             badge_pos = ((x1s + x2s) // 2, (y1s + y2s) // 2)
 
+        # Fallback: badge_pos may still be None if polygon lookup failed for all rooms.
+        # Find any available room polygon and place badge at its centroid.
+        if badge_pos is None:
+            for rid in affected_ids:
+                room = room_map.get(rid, {})
+                poly = region_to_polygon(
+                    room.get('polygon') or room.get('region_percent', {}), width, height
+                )
+                if poly:
+                    badge_pos = polygon_centroid(poly)
+                    break
+
         if badge_pos:
             mx, my = badge_pos
             r = line_w * 3
