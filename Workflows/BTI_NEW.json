@@ -813,7 +813,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst planUrl = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + chatId + '/plan.png?t=' + Date.now();\n\nconst prompt =\n  'Ты — эксперт по анализу планов БТИ. Проанализируй план квартиры.\\n' +\n  'Верни ТОЛЬКО чистый JSON (без markdown, без пояснений) в точно таком формате:\\n' +\n  '{\"apartment_bounds\":[[0.05,0.08],[0.95,0.08],[0.95,0.92],[0.05,0.92]],' +\n  '\"rooms\":[{\"id\":\"room_1\",\"name\":\"Жилая комната 1\",\"polygon\":[[0.10,0.12],[0.48,0.12],[0.48,0.55],[0.10,0.55]]}],' +\n  '\"shots\":[{\"shot_id\":\"room_1_shot_1\",\"room_id\":\"room_1\",\"room_name\":\"Жилая комната 1\",\"position\":\"северо-западный угол\",\"direction\":\"на юго-восток\",\"instruction\":\"Встаньте в угол и сфотографируйте всё помещение целиком\"}]}' +\n  '\\n' +\n  'Шаг 1: Определи apartment_bounds — полигон внешних стен всей квартиры (4-6 точек [[x,y],...] в координатах 0.0–1.0).\\n' +\n  'Шаг 2: Для каждого помещения задай polygon — 4-6 точек [[x,y],...], строго внутри apartment_bounds.\\n' +\n  'Правила:\\n' +\n  '- Найди все помещения: жилые комнаты, кухня, санузел(ы), коридор, балкон/лоджия, кладовая\\n' +\n  '- polygon: обходи периметр помещения по стенам по часовой стрелке, 4 точки для прямоугольных, 5-6 для L-образных\\n' +\n  '- Для каждого помещения: 1-2 точки съёмки (угол охвата >= 120 градусов)\\n' +\n  '- Инструкции конкретные: с какой точки, куда смотреть\\n' +\n  '- Все тексты на русском языке';\n\nconst requestBody = {\n  model: \"gpt-4o-mini\",\n  messages: [{\n    role: \"user\",\n    content: [\n      { type: \"text\", text: prompt },\n      { type: \"image_url\", image_url: { url: planUrl, detail: \"high\" } }\n    ]\n  }],\n  response_format: { type: \"json_object\" },\n  temperature: 0.1,\n  max_tokens: 4096\n};\n\nreturn [{ json: { chatId, requestBodyString: JSON.stringify(requestBody) } }];"
+        "jsCode": "const chatId  = $('Telegram Trigger').first().json.message.chat.id;\nconst planUrl = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + chatId + '/plan.png?t=' + Date.now();\n\nconst prompt =\n  'Ты — эксперт по анализу планов БТИ. Проанализируй этот план.\\n' +\n  'Верни только JSON (без markdown, без пояснений) в точно таком формате:\\n' +\n  '{\"apartment_bounds\":[[0.05,0.08],[0.95,0.08],[0.95,0.92],[0.05,0.92]],'\n  + '\"rooms\":[{\"id\":\"room_1\",\"name\":\"Название комнаты\",\"polygon\":[[0.10,0.12],[0.48,0.12],[0.48,0.55],[0.10,0.55]]}]}\\n\\n'\n  + 'ШАГ 1: определи apartment_bounds — внешний контур всей квартиры (4–6 точек [[x,y],...] в координатах 0.0–1.0).\\n'\n  + 'ШАГ 2: для каждого помещения дай polygon в 4–6 точках [[x,y],...], строго внутри apartment_bounds.\\n\\n'\n  + 'Правила:\\n'\n  + '- Назови все помещения: жилые комнаты, кухня, санузел(ы), прихожая, лоджия/балкон, кладовая\\n'\n  + '- polygon: точно описывает контур помещения по стенам, 4 точки для прямоугольника, 5–6 для L-образных\\n'\n  + '- Нумерация id: room_1, room_2, ... по порядку\\n'\n  + '- Координаты: в диапазоне 0.0–1.0, где (0,0) — верхний левый угол плана';\n\nconst requestBody = {\n  model: \"gpt-4o-mini\",\n  messages: [{\n    role: \"user\",\n    content: [\n      { type: \"text\", text: prompt },\n      { type: \"image_url\", image_url: { url: planUrl, detail: \"high\" } }\n    ]\n  }],\n  response_format: { type: \"json_object\" },\n  temperature: 0.1,\n  max_tokens: 2048\n};\n\nreturn [{ json: { chatId, planUrl, requestBodyString: JSON.stringify(requestBody) } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -821,8 +821,8 @@
         3824,
         -176
       ],
-      "id": "fc116ce3-51c6-48b2-9d18-7f739bfddb24",
-      "name": "Code - Gemini Request"
+      "id": "code-gemini-geometry-req-001",
+      "name": "Code - Gemini Geometry Request"
     },
     {
       "parameters": {
@@ -855,21 +855,72 @@
         4064,
         -176
       ],
-      "id": "93876821-54aa-4474-85f5-b81ca5060de6",
-      "name": "HTTP Request - Gemini",
+      "id": "http-gemini-geometry-001",
+      "name": "HTTP Request - Gemini Geometry",
+      "continueOnFail": true,
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 3000,
-      "continueOnFail": true
+      "waitBetweenTries": 30000
     },
     {
       "parameters": {
-        "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Request').first().json.chatId;\n\n// API or HTTP error\nif (resp.error || !resp.choices || !resp.choices[0]) {\n  const msg = (resp.error && resp.error.message) || 'Ошибка API анализа плана';\n  return [{ json: { error: true, chatId: chatId, errorMsg: msg } }];\n}\n\nlet parsed;\ntry {\n  const text = resp.choices[0].message.content;\n  parsed = JSON.parse(text);\n} catch(e) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось распознать структуру плана. Попробуйте загрузить более чёткое изображение.' } }];\n}\n\nconst rooms = parsed.rooms || [];\nconst shots = parsed.shots || [];\n\nif (!shots.length) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось определить комнаты на плане. Проверьте качество изображения и попробуйте снова.' } }];\n}\n\nconst shotsStatus = {};\nshots.forEach(function(s) { shotsStatus[s.shot_id] = 'pending'; });\nconst firstShot = shots[0];\nshotsStatus[firstShot.shot_id] = 'requested';\n\nfunction h(s) {\n  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n}\n\nconst roomsList = rooms.map(function(r) { return '\\u2022 ' + h(r.name); }).join('\\n');\nconst roomsText = '<b>\\u041f\\u043b\\u0430\\u043d \\u043f\\u0440\\u043e\\u0430\\u043d\\u0430\\u043b\\u0438\\u0437\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d!</b>\\n\\u041e\\u0431\\u043d\\u0430\\u0440\\u0443\\u0436\\u0435\\u043d\\u043d\\u044b\\u0435 \\u043f\\u043e\\u043c\\u0435\\u0449\\u0435\\u043d\\u0438\\u044f:\\n' + roomsList\n  + '\\n\\u0412\\u0441\\u0435\\u0433\\u043e \\u0442\\u043e\\u0447\\u0435\\u043a \\u0441\\u044a\\u0451\\u043c\\u043a\\u0438: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '\\uD83D\\uDCF7 <b>\\u0424\\u043e\\u0442\\u043e 1 \\u0438\\u0437 ' + total + '</b>\\n'\n  + '\\uD83C\\uDFE0 ' + h(firstShot.room_name) + '\\n'\n  + '\\uD83D\\uDCCD \\u041f\\u043e\\u0437\\u0438\\u0446\\u0438\\u044f: ' + h(firstShot.position) + '\\n'\n  + '\\u27A1\\uFE0F \\u041d\\u0430\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435: ' + h(firstShot.direction) + '\\n'\n  + h(firstShot.instruction) + '\\n'\n  + '<i>\\u041e\\u0442\\u043f\\u0440\\u0430\\u0432\\u044c\\u0442\\u0435 \\u0444\\u043e\\u0442\\u043e \\u043a\\u0430\\u043a \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442/\\u0444\\u0430\\u0439\\u043b \\u2014 \\u044d\\u0442\\u043e \\u0441\\u043e\\u0445\\u0440\\u0430\\u043d\\u044f\\u0435\\u0442 \\u043a\\u0430\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e</i>';\n\nreturn [{ json: {\n  error:             false,\n  chatId:            chatId,\n  rooms_json:        rooms,\n  shots_json:        shots,\n  shots_status:      shotsStatus,\n  rooms_text:        roomsText,\n  first_instruction: firstMsg,\n  total_shots:       total\n} }];"
+        "jsCode": "const chatId  = $('Code - Gemini Geometry Request').first().json.chatId;\nconst planUrl = $('Code - Gemini Geometry Request').first().json.planUrl;\nconst resp    = $input.first().json;\n\n// Parse geometry response\nlet rooms = [];\nlet apartment_bounds = null;\nif (resp.choices && resp.choices[0]) {\n  try {\n    const parsed = JSON.parse(resp.choices[0].message.content);\n    rooms = parsed.rooms || [];\n    apartment_bounds = parsed.apartment_bounds || null;\n  } catch(e) {}\n}\n\nconst roomsList = rooms.map(function(r) {\n  return '- room_id: ' + r.id + ', название: ' + r.name;\n}).join('\\n');\n\nconst prompt =\n  'Ты — эксперт по планированию фотосъёмки квартир для проверки перепланировки.\\n' +\n  'На этом плане БТИ расположены следующие помещения:\\n' + roomsList + '\\n\\n' +\n  'Для каждого помещения определи 1–2 точки съёмки.\\n' +\n  'Верни только JSON (без markdown, без пояснений):\\n' +\n  '{\"shots\":[{\"shot_id\":\"room_1_shot_1\",\"room_id\":\"room_1\",\"room_name\":\"Название\",'\n  + '\"position\":\"северо-западный угол\",\"direction\":\"на юго-восток\",'\n  + '\"instruction\":\"подробная инструкция\"}]}\\n\\n' +\n  'Правила:\\n' +\n  '- shot_id = room_id + \"_shot_1\" (и \"_shot_2\" если нужна вторая точка)\\n' +\n  '- Для просторных помещений (гостиная, спальня гот 15 кв.м) — 2 точки\\n' +\n  '- position: конкретный угол или место в комнате\\n' +\n  '- direction: направление взгляда камеры\\n' +\n  '- instruction: что именно показать, какие стены захватить, что важно зафиксировать\\n' +\n  '- Используй строго те room_id которые указаны выше, без изменений';\n\nconst requestBody = {\n  model: \"gpt-4o-mini\",\n  messages: [{\n    role: \"user\",\n    content: [\n      { type: \"text\", text: prompt },\n      { type: \"image_url\", image_url: { url: planUrl, detail: \"high\" } }\n    ]\n  }],\n  response_format: { type: \"json_object\" },\n  temperature: 0.1,\n  max_tokens: 2048\n};\n\nreturn [{ json: {\n  chatId,\n  rooms: JSON.stringify(rooms),\n  apartment_bounds: JSON.stringify(apartment_bounds),\n  requestBodyString: JSON.stringify(requestBody)\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         4304,
+        -176
+      ],
+      "id": "code-gemini-shots-req-001",
+      "name": "Code - Gemini Shots Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer OPENAI_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.requestBodyString }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        4544,
+        -176
+      ],
+      "id": "http-gemini-shots-001",
+      "name": "HTTP Request - Gemini Shots",
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 30000
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Geometry Request').first().json.chatId;\n\n// API or HTTP error from shots request\nif (resp.error || !resp.choices || !resp.choices[0]) {\n  const msg = (resp.error && resp.error.message) || 'Ошибка API запроса Точек съёмки';\n  return [{ json: { error: true, chatId: chatId, errorMsg: msg } }];\n}\n\n// Parse shots from second request\nlet shots = [];\ntry {\n  const text = resp.choices[0].message.content;\n  shots = JSON.parse(text).shots || [];\n} catch(e) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось разобрать ответ Гемини. Попробуйте загрузить более чёткий план квартиры.' } }];\n}\n\nif (!shots.length) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось составить задание по плану. Убедитесь что изображение содержит план квартиры.' } }];\n}\n\n// Get rooms + bounds from geometry request (passed through shots request)\nlet rooms = [];\nlet apartment_bounds = null;\ntry { rooms = JSON.parse($('Code - Gemini Shots Request').first().json.rooms || '[]'); } catch(e) {}\ntry { apartment_bounds = JSON.parse($('Code - Gemini Shots Request').first().json.apartment_bounds || 'null'); } catch(e) {}\n\nconst shotsStatus = {};\nshots.forEach(function(s) { shotsStatus[s.shot_id] = 'pending'; });\nconst firstShot = shots[0];\nshotsStatus[firstShot.shot_id] = 'requested';\n\nfunction h(s) {\n  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n}\n\nconst roomsList = rooms.map(function(r) { return '\\u2022 ' + h(r.name); }).join('\\n');\nconst roomsText = '<b>\\u041f\\u043b\\u0430\\u043d \\u043f\\u0440\\u043e\\u0430\\u043d\\u0430\\u043b\\u0438\\u0437\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d!</b>\\n\\u041e\\u0431\\u043d\\u0430\\u0440\\u0443\\u0436\\u0435\\u043d\\u043d\\u044b\\u0435 \\u043f\\u043e\\u043c\\u0435\\u0449\\u0435\\u043d\\u0438\\u044f:\\n' + roomsList\n  + '\\n\\u0412\\u0441\\u0435\\u0433\\u043e \\u0442\\u043e\\u0447\\u0435\\u043a \\u0441\\u044a\\u0451\\u043c\\u043a\\u0438: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '\\uD83D\\uDCF7 <b>\\u0424\\u043e\\u0442\\u043e 1 \\u0438\\u0437 ' + total + '</b>\\n'\n  + '\\uD83C\\uDFE0 ' + h(firstShot.room_name) + '\\n'\n  + '\\uD83D\\uDCCD \\u041f\\u043e\\u0437\\u0438\\u0446\\u0438\\u044f: ' + h(firstShot.position) + '\\n'\n  + '\\u27A1\\uFE0F \\u041d\\u0430\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435: ' + h(firstShot.direction) + '\\n'\n  + h(firstShot.instruction) + '\\n'\n  + '<i>\\u041e\\u0442\\u043f\\u0440\\u0430\\u0432\\u044c\\u0442\\u0435 \\u0444\\u043e\\u0442\\u043e \\u043a\\u0430\\u043a \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442/\\u0444\\u0430\\u0439\\u043b \\u2014 \\u044d\\u0442\\u043e \\u0441\\u043e\\u0445\\u0440\\u0430\\u043d\\u044f\\u0435\\u0442 \\u043a\\u0430\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e</i>';\n\nreturn [{ json: {\n  error:             false,\n  chatId:            chatId,\n  rooms_json:        rooms,\n  apartment_bounds:  apartment_bounds,\n  shots_json:        shots,\n  shots_status:      shotsStatus,\n  rooms_text:        roomsText,\n  first_instruction: firstMsg,\n  total_shots:       total\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4784,
         -176
       ],
       "id": "91eb5d68-3d8a-457e-ac76-9495a3e555db",
@@ -3024,29 +3075,18 @@
       "main": [
         [
           {
-            "node": "Code - Gemini Request",
+            "node": "Code - Gemini Geometry Request",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Code - Gemini Request": {
+    "Code - Gemini Geometry Request": {
       "main": [
         [
           {
-            "node": "HTTP Request - Gemini",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request - Gemini": {
-      "main": [
-        [
-          {
-            "node": "Code - Parse Gemini",
+            "node": "HTTP Request - Gemini Geometry",
             "type": "main",
             "index": 0
           }
@@ -3790,6 +3830,39 @@
         [
           {
             "node": "Code - Parse Classification Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Gemini Geometry": {
+      "main": [
+        [
+          {
+            "node": "Code - Gemini Shots Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Gemini Shots Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Gemini Shots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Gemini Shots": {
+      "main": [
+        [
+          {
+            "node": "Code - Parse Gemini",
             "type": "main",
             "index": 0
           }
