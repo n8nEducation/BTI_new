@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-22T19:25:40.035Z",
+  "updatedAt": "2026-03-25T06:48:02.048Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
@@ -3845,9 +3845,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
-  "activeVersionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
-  "versionCounter": 222,
+  "versionId": "430512f7-c6cc-4ee8-a30d-486aa4ba320a",
+  "activeVersionId": "430512f7-c6cc-4ee8-a30d-486aa4ba320a",
+  "versionCounter": 333,
   "triggerCount": 1,
   "shared": [
     {
@@ -3872,7 +3872,7 @@
             "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2",
             "projectId": "nPWKYNF7nPyxhKb6",
             "user": {
-              "updatedAt": "2026-03-21T21:35:09.338Z",
+              "updatedAt": "2026-03-25T05:55:43.811Z",
               "createdAt": "2026-02-23T20:24:03.130Z",
               "id": "22bd6d73-5378-4d79-97c5-c471d4c139b2",
               "email": "krivickiydaniilgomel@gmail.com",
@@ -3891,7 +3891,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-03-21",
+              "lastActiveAt": "2026-03-24",
               "isPending": false
             }
           }
@@ -3901,9 +3901,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-03-22T19:25:40.041Z",
-    "createdAt": "2026-03-22T19:25:40.041Z",
-    "versionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
+    "updatedAt": "2026-03-25T06:48:02.051Z",
+    "createdAt": "2026-03-25T06:48:02.051Z",
+    "versionId": "430512f7-c6cc-4ee8-a30d-486aa4ba320a",
     "workflowId": "305RmoqLIGnuYonX",
     "nodes": [
       {
@@ -4744,7 +4744,9 @@
           "contentType": "raw",
           "rawContentType": "application/json",
           "body": "={{ $json.requestBodyString }}",
-          "options": {}
+          "options": {
+            "timeout": 60000
+          }
         },
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
@@ -4754,7 +4756,10 @@
         ],
         "id": "93876821-54aa-4474-85f5-b81ca5060de6",
         "name": "HTTP Request - Gemini",
-        "continueOnFail": true
+        "continueOnFail": true,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 3000
       },
       {
         "parameters": {
@@ -5590,7 +5595,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar ragContext = $('Code - Format RAG Results').first().json.ragContext || '';\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json\n  ? (typeof session.shots_json === 'string' ? JSON.parse(session.shots_json) : session.shots_json)\n  : [];\nvar shotsStatus = session.shots_status\n  ? (typeof session.shots_status === 'string' ? JSON.parse(session.shots_status) : session.shots_status)\n  : {};\nvar roomsJson = session.rooms_json\n  ? (typeof session.rooms_json === 'string' ? JSON.parse(session.rooms_json) : session.rooms_json)\n  : [];\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\nvar receivedShots = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    receivedShots.push({\n      url: SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg',\n      room_id: shot.room_id || '',\n      room_name: shot.room_name || '',\n      position: shot.position || '',\n      direction: shot.direction || ''\n    });\n  }\n}\n\nvar roomsList = roomsJson.length > 0\n  ? 'КОМНАТЫ И ИХ ПОЛИГОНЫ (координаты 0.0-1.0):\\n' + roomsJson.map(function(r) {\n      var poly = r.polygon || [];\n      var edges = [];\n      for (var k = 0; k < poly.length; k++) {\n        var p1 = poly[k];\n        var p2 = poly[(k + 1) % poly.length];\n        edges.push('[' + p1[0] + ',' + p1[1] + ',' + p2[0] + ',' + p2[1] + ']');\n      }\n      return '- room_id: ' + r.id + ', ' + r.name + '\\n  polygon: ' + JSON.stringify(poly) + '\\n  рёбра стен: ' + edges.join(', ');\n    }).join('\\n')\n  : '';\n\nvar systemPrompt =\n  'Ты — строгий технический инспектор БТИ с 20-летним опытом выявления незаконных перепланировок в России. ' +\n  'Твоя задача — защитить жителей дома от последствий незаконных перепланировок. ' +\n  'Будь педантичен: любое отклонение от плана БТИ должно быть зафиксировано. ' +\n  'Лучше перестраховаться и указать requires_approval, чем пропустить нарушение. ' +\n  'Отвечай только на русском языке. ' +\n  'Всегда возвращай ответ строго в формате JSON без markdown-обёртки.';\n\nvar userText =\n  'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n' +\n  (roomsList ? roomsList + '\\n\\n---\\n\\n' : '') +\n  'ЗАДАНИЕ:\\n' +\n  'Изображение 1 — официальный план БТИ квартиры.\\n' +\n  'Следующие изображения — фотографии реального состояния комнат.\\n\\n' +\n  'ШАГ 1: Изучи план БТИ — запомни расположение всех стен, перегородок, дверных проёмов, санузлов.\\n' +\n  'ШАГ 2: Для каждой комнаты сравни фото с планом БТИ.\\n' +\n  'ШАГ 3: Зафиксируй любые структурные отклонения: снос/перенос стен, проёмы, объединение комнат, мокрые зоны.\\n' +\n  'ШАГ 4: Классифицируй каждое изменение по нормативам.\\n\\n' +\n  'ФОРМАТ ОТВЕТА JSON:\\n' +\n  '{\"confidence\":<0-1>,\"changes\":[{\"room_id\":\"...\",\"type\":\"...\",\"description\":\"...\",\"classification\":\"legal|requires_approval|illegal\",\"recommendation\":\"...\",\"affected_room_ids\":[\"room_id1\"]}],\"summary\":\"...\"}' +\n  '\\n\\n' +\n  'Допустимые type: wall_removal, wall_addition, doorway_change, room_merge, room_split, wet_zone_move, other\\n' +\n  'Классификации: legal=разрешено, requires_approval=требует согласования, illegal=незаконно (несущие стены, мокрые зоны, газ)\\n' +\n  'affected_room_ids — список room_id комнат, которых касается изменение.\\n' +\n  '• Снесена стена между двумя комнатами → оба room_id: [\"room_1\",\"room_2\"].\\n' +\n  '• Изменение внутри одной комнаты → один room_id: [\"room_1\"].\\n' +\n  'КРИТИЧЕСКИ ВАЖНО: все поля JSON (description, recommendation, summary) пиши ИСКЛЮЧИТЕЛЬНО на русском языке.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < receivedShots.length; j++) {\n  var s = receivedShots[j];\n  var label = 'Фото ' + (j+1) + ': ' + s.room_name + ' (room_id: ' + s.room_id + '), позиция: ' + s.position + ', направление: ' + s.direction;\n  contentArray.push({ type: 'text', text: label });\n  contentArray.push({ type: 'image_url', image_url: { url: s.url, detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 4000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: receivedShots.length } }];"
+          "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json\n  ? (typeof session.shots_json === 'string' ? JSON.parse(session.shots_json) : session.shots_json)\n  : [];\nvar shotsStatus = session.shots_status\n  ? (typeof session.shots_status === 'string' ? JSON.parse(session.shots_status) : session.shots_status)\n  : {};\nvar roomsJson = session.rooms_json\n  ? (typeof session.rooms_json === 'string' ? JSON.parse(session.rooms_json) : session.rooms_json)\n  : [];\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\nvar receivedShots = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    receivedShots.push({\n      url: SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg',\n      room_id: shot.room_id || '',\n      room_name: shot.room_name || '',\n      position: shot.position || '',\n      direction: shot.direction || ''\n    });\n  }\n}\n\nvar roomsList = roomsJson.length > 0\n  ? 'КОМНАТЫ (room_id → название):\\n' + roomsJson.map(function(r) {\n      return '- room_id: ' + r.id + ' → ' + r.name;\n    }).join('\\n')\n  : '';\n\nvar systemPrompt =\n  'Ты — опытный технический инспектор. ' +\n  'Твоя задача — только наблюдение: сравни фотографии с планом БТИ и зафикcируй структурные отличия. ' +\n  'НЕ классифицируй, НЕ давай рекомендации — только описывай что видишь. ' +\n  'Отвечай строго в формате JSON без markdown-обёртки.';\n\nvar userText =\n  (roomsList ? roomsList + '\\n\\n---\\n\\n' : '') +\n  'Изображение 1 — официальный план БТИ квартиры.\\n' +\n  'Следующие изображения — фотографии реального состояния комнат.\\n\\n' +\n  'ШАГ 1: Изучи план БТИ — запомни расположение стен, перегородок, дверных проёмов, санузлов.\\n' +\n  'ШАГ 2: Для каждой комнаты сравни фото с планом.\\n' +\n  'ШАГ 3: Зафикcируй только структурные отличия (снос/перенос стен, проёмы, объединение комнат, перемещение мокрых зон).\\n\\n' +\n  'ФОРМАТ ОТВЕТА JSON:\\n' +\n  '{\"observations\":[{\"room_id\":\"...\",\"type\":\"...\",\"description\":\"...\",\"affected_room_ids\":[\"room_id1\",\"room_id2\"]}]}\\n\\n' +\n  'Допустимые type: wall_removal, wall_addition, doorway_change, room_merge, room_split, wet_zone_move, other\\n' +\n  'affected_room_ids: все room_id затронутых комнат.\\n' +\n  'Если изменений нет — возвращай {\"observations\":[]}.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < receivedShots.length; j++) {\n  var s = receivedShots[j];\n  var label = 'Фото ' + (j+1) + ': ' + s.room_name + ' (room_id: ' + s.room_id + '), позиция: ' + s.position + ', направление: ' + s.direction;\n  contentArray.push({ type: 'text', text: label });\n  contentArray.push({ type: 'image_url', image_url: { url: s.url, detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: receivedShots.length } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -5598,8 +5603,8 @@
           4384,
           512
         ],
-        "id": "build-gpt4o-payload-node-001",
-        "name": "Code - Build GPT4o Payload"
+        "id": "build-vision-payload-node-001",
+        "name": "Code - Build Vision Payload"
       },
       {
         "parameters": {
@@ -5638,8 +5643,8 @@
           4624,
           512
         ],
-        "id": "http-gpt4o-node-001",
-        "name": "HTTP Request - GPT4o",
+        "id": "http-gpt4o-vision-node-001",
+        "name": "HTTP Request - GPT4o Vision",
         "continueOnFail": true,
         "retryOnFail": true,
         "maxTries": 3,
@@ -5647,7 +5652,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var chatId = $('Code - Build GPT4o Payload').first().json.chatId;\nvar resp = $input.first().json;\n\n// API or HTTP error\nif (resp.error || !resp.choices || !resp.choices[0]) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: (resp.error && resp.error.message) || '\\u041e\\u0448\\u0438\\u0431\\u043a\\u0430 GPT-4o API' } }];\n}\n\nvar responseContent = '';\ntry {\n  responseContent = resp.choices[0].message.content;\n} catch(e) {\n  return [{ json: { error: true, chatId: chatId, errorMsg: '\\u041e\\u0448\\u0438\\u0431\\u043a\\u0430 \\u043f\\u043e\\u043b\\u0443\\u0447\\u0435\\u043d\\u0438\\u044f \\u043e\\u0442\\u0432\\u0435\\u0442\\u0430: ' + e.message } }];\n}\n\nvar analysisResult;\ntry {\n  analysisResult = JSON.parse(responseContent);\n} catch(e) {\n  analysisResult = {\n    confidence: 0,\n    changes: [],\n    summary: '\\u041e\\u0448\\u0438\\u0431\\u043a\\u0430 \\u043f\\u0430\\u0440\\u0441\\u0438\\u043d\\u0433\\u0430 GPT-4o: ' + responseContent.substring(0, 200)\n  };\n}\n\nif (!analysisResult.changes)    { analysisResult.changes    = []; }\nif (typeof analysisResult.confidence === 'undefined') { analysisResult.confidence = 0.5; }\nif (!analysisResult.summary)    { analysisResult.summary    = ''; }\n\nreturn [{ json: { error: false, chatId: chatId, analysis_result: analysisResult } }];"
+          "jsCode": "var chatId = $('Code - Build Vision Payload').first().json.chatId;\nvar ragContext = $('Code - Format RAG Results').first().json.ragContext || '';\nvar resp = $input.first().json;\n\nvar observations = [];\nif (resp.choices && resp.choices[0]) {\n  try {\n    var parsed = JSON.parse(resp.choices[0].message.content);\n    observations = parsed.observations || [];\n  } catch(e) {}\n}\n\nvar obsText = observations.length > 0\n  ? observations.map(function(o, i) {\n      var ids = (o.affected_room_ids && o.affected_room_ids.length)\n        ? ' (комнаты: ' + o.affected_room_ids.join(', ') + ')'\n        : '';\n      return (i+1) + '. [' + (o.type || 'other') + '] ' + (o.description || '') + ids;\n    }).join('\\n')\n  : 'Структурных изменений не обнаружено.';\n\nvar systemPrompt =\n  'Ты — строгий юридический эксперт по жилищному праву России с 20-летним опытом. ' +\n  'Твоя задача — классифицировать выявленные структурные изменения согласно нормативам. ' +\n  'Будь педантичен: лучше перестраховаться и указать requires_approval, чем пропустить нарушение. ' +\n  'Отвечай только на русском языке. ' +\n  'Всегда возвращай ответ строго в формате JSON без markdown-обёртки.';\n\nvar userText =\n  'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n' +\n  'ВЫЯВЛЕННЫЕ СТРУКТУРНЫЕ ИЗМЕНЕНИЯ:\\n' + obsText + '\\n\\n---\\n\\n' +\n  'ЗАДАНИЕ: классифицируй каждое изменение по нормативам.\\n\\n' +\n  'ФОРМАТ ОТВЕТА JSON:\\n' +\n  '{\"confidence\":<0-1>,\"changes\":[{\"room_id\":\"...\",\"type\":\"...\",\"description\":\"...\",\"classification\":\"legal|requires_approval|illegal\",\"recommendation\":\"...\",\"affected_room_ids\":[\"room_id1\"]}],\"summary\":\"...\"}\\n\\n' +\n  'Классификации: legal=разрешено, requires_approval=требует согласования, illegal=незаконно (несущие стены, мокрые зоны, газ)\\n' +\n  'КРИТИЧЕСКИ ВАЖНО: все поля JSON пиши ИСКЛЮЧИТЕЛЬНО на русском языке.';\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userText }\n  ],\n  max_tokens: 4000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body) } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -5655,13 +5660,70 @@
           4864,
           512
         ],
-        "id": "parse-gpt4o-node-001",
-        "name": "Code - Parse GPT4o Response"
+        "id": "build-classify-payload-node-001",
+        "name": "Code - Build Classification Payload"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.openai.com/v1/chat/completions",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer OPENAI_API_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.body }}",
+          "options": {
+            "timeout": 120000,
+            "batching": {
+              "batch": {
+                "batchSize": 1,
+                "batchInterval": 1000
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          5104,
+          512
+        ],
+        "id": "http-gpt4o-classify-node-001",
+        "name": "HTTP Request - GPT4o Classify",
+        "continueOnFail": true,
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 65000
+      },
+      {
+        "parameters": {
+          "jsCode": "var chatId = $('Code - Build Vision Payload').first().json.chatId;\nvar resp = $input.first().json;\n\nif (resp.error || !resp.choices || !resp.choices[0]) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: (resp.error && resp.error.message) || 'Ошибка GPT-4o API' } }];\n}\n\nvar responseContent = '';\ntry {\n  responseContent = resp.choices[0].message.content;\n} catch(e) {\n  return [{ json: { error: true, chatId: chatId, errorMsg: 'Ошибка получения ответа: ' + e.message } }];\n}\n\nvar analysisResult;\ntry {\n  analysisResult = JSON.parse(responseContent);\n} catch(e) {\n  analysisResult = {\n    confidence: 0,\n    changes: [],\n    summary: 'Ошибка парсинга GPT-4o: ' + responseContent.substring(0, 200)\n  };\n}\n\nif (!analysisResult.changes)    { analysisResult.changes    = []; }\nif (typeof analysisResult.confidence === 'undefined') { analysisResult.confidence = 0.5; }\nif (!analysisResult.summary)    { analysisResult.summary    = ''; }\n\nreturn [{ json: { error: false, chatId: chatId, analysis_result: analysisResult } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5344,
+          512
+        ],
+        "id": "parse-classify-node-001",
+        "name": "Code - Parse Classification Response"
       },
       {
         "parameters": {
           "method": "PATCH",
-          "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $('Code - Parse GPT4o Response').first().json.chatId }}",
+          "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $('Code - Parse Classification Response').first().json.chatId }}",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -5713,7 +5775,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var ar = $('Code - Parse GPT4o Response').first().json.analysis_result;\nvar chatId = $('Code - Parse GPT4o Response').first().json.chatId;\nvar changes = ar.changes || [];\nvar confidence = typeof ar.confidence === 'number' ? ar.confidence : 0.5;\nvar summary = ar.summary || '';\nvar isLow = confidence < 0.6;\nvar pct = Math.round(confidence * 100);\n\nfunction h(s) {\n  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n}\nfunction icon(cls) {\n  if (cls === 'illegal') return '❌';\n  if (cls === 'requires_approval') return '⚠️';\n  return '✅';\n}\nfunction label(cls) {\n  if (cls === 'illegal') return 'Незаконная перепланировка';\n  if (cls === 'requires_approval') return 'Требует согласования';\n  return 'Согласуемая';\n}\n\nvar lines = changes.map(function(c, i) {\n  return (i+1) + '. ' + icon(c.classification) + ' <b>' + h(label(c.classification)) + '</b>\\n'\n    + '   ' + h(c.description) + '\\n'\n    + '   <i>' + h(c.recommendation) + '</i>';\n});\n\nvar report = '📊 <b>Результат анализа перепланировки</b>\\n\\n' + h(summary) + '\\n\\n';\nif (lines.length > 0) {\n  report += '<b>Обнаруженные изменения:</b>\\n' + lines.join('\\n\\n') + '\\n\\n';\n} else {\n  report += 'Значимых изменений не обнаружено.\\n\\n';\n}\nif (isLow) {\n  report += '⚠️ <i>Уверенность анализа: ' + pct + '%. Ваш запрос передан специалисту для ручной проверки.</i>\\n\\n';\n}\nreport += '<i>⚠️ Результат носит информационный характер и не является юридическим заключением.</i>';\n\nvar managerMsg = '🔔 <b>Требуется ручная проверка</b>\\n\\n'\n  + 'Chat ID: <code>' + chatId + '</code>\\n'\n  + 'Уверенность GPT-4o: ' + pct + '%\\n\\n'\n  + '<b>Резюме:</b> ' + h(summary) + '\\n'\n  + 'Пожалуйста, проверьте анализ вручную.';\n\nreturn [{ json: { chatId: chatId, report_text: report, manager_text: managerMsg,\n                  confidence: confidence, is_low_confidence: isLow } }];\n"
+          "jsCode": "var ar = $('Code - Parse Classification Response').first().json.analysis_result;\nvar chatId = $('Code - Parse Classification Response').first().json.chatId;\nvar changes = ar.changes || [];\nvar confidence = typeof ar.confidence === 'number' ? ar.confidence : 0.5;\nvar summary = ar.summary || '';\nvar isLow = confidence < 0.6;\nvar pct = Math.round(confidence * 100);\n\nfunction h(s) {\n  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n}\nfunction icon(cls) {\n  if (cls === 'illegal') return '❌';\n  if (cls === 'requires_approval') return '⚠️';\n  return '✅';\n}\nfunction label(cls) {\n  if (cls === 'illegal') return 'Незаконная перепланировка';\n  if (cls === 'requires_approval') return 'Требует согласования';\n  return 'Согласуемая';\n}\n\nvar lines = changes.map(function(c, i) {\n  return (i+1) + '. ' + icon(c.classification) + ' <b>' + h(label(c.classification)) + '</b>\\n'\n    + '   ' + h(c.description) + '\\n'\n    + '   <i>' + h(c.recommendation) + '</i>';\n});\n\nvar report = '📊 <b>Результат анализа перепланировки</b>\\n\\n' + h(summary) + '\\n\\n';\nif (lines.length > 0) {\n  report += '<b>Обнаруженные изменения:</b>\\n' + lines.join('\\n\\n') + '\\n\\n';\n} else {\n  report += 'Значимых изменений не обнаружено.\\n\\n';\n}\nif (isLow) {\n  report += '⚠️ <i>Уверенность анализа: ' + pct + '%. Ваш запрос передан специалисту для ручной проверки.</i>\\n\\n';\n}\nreport += '<i>⚠️ Результат носит информационный характер и не является юридическим заключением.</i>';\n\nvar managerMsg = '🔔 <b>Требуется ручная проверка</b>\\n\\n'\n  + 'Chat ID: <code>' + chatId + '</code>\\n'\n  + 'Уверенность GPT-4o: ' + pct + '%\\n\\n'\n  + '<b>Резюме:</b> ' + h(summary) + '\\n'\n  + 'Пожалуйста, проверьте анализ вручную.';\n\nreturn [{ json: { chatId: chatId, report_text: report, manager_text: managerMsg,\n                  confidence: confidence, is_low_confidence: isLow } }];\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -5726,8 +5788,8 @@
       },
       {
         "parameters": {
-          "chatId": "={{ $json.chatId }}",
-          "text": "={{ $json.report_text }}",
+          "chatId": "={{ $('Code - Build Report').first().json.chatId }}",
+          "text": "={{ $('Code - Build Report').first().json.report_text }}",
           "additionalFields": {
             "appendAttribution": false,
             "parse_mode": "HTML"
@@ -6039,7 +6101,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          2336,
+          2528,
           192
         ],
         "id": "http-upload-converted-plan-001"
@@ -6165,7 +6227,7 @@
               },
               {
                 "name": "changes",
-                "value": "={{ JSON.stringify($('Code - Parse GPT4o Response').first().json.analysis_result.changes || []) }}"
+                "value": "={{ JSON.stringify($('Code - Parse Classification Response').first().json.analysis_result.changes || []) }}"
               }
             ]
           },
@@ -6561,6 +6623,98 @@
             "name": "BTI_BOT"
           }
         }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://python-service:5000/crop-plan",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "parameterType": "formBinaryData",
+                "name": "image",
+                "inputDataFieldName": "data"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "file"
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          2240,
+          192
+        ],
+        "id": "http-crop-plan-pdf-001",
+        "name": "HTTP Request - Crop Plan PDF",
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://python-service:5000/crop-plan",
+          "sendBody": true,
+          "contentType": "multipart-form-data",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "parameterType": "formBinaryData",
+                "name": "image",
+                "inputDataFieldName": "data"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "file"
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          1952,
+          -176
+        ],
+        "id": "http-crop-plan-photo-001",
+        "name": "HTTP Request - Crop Plan Photo",
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const cropped = $input.first();\nif (cropped.binary && cropped.binary.data) {\n  return [$input.first()];\n}\n// Crop failed — use original binary from Get a file\nreturn [$('Get a file').first()];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2144,
+          -176
+        ],
+        "id": "code-crop-fallback-photo-001",
+        "name": "Code - Crop Fallback Photo"
+      },
+      {
+        "parameters": {
+          "jsCode": "const cropped = $input.first();\nif (cropped.binary && cropped.binary.data) {\n  return [$input.first()];\n}\n// Crop failed — use original binary from Convert PDF\nreturn [$('HTTP Request - Convert PDF').first()];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2336,
+          192
+        ],
+        "id": "code-crop-fallback-pdf-001",
+        "name": "Code - Crop Fallback PDF"
       }
     ],
     "connections": {
@@ -6785,7 +6939,7 @@
         "main": [
           [
             {
-              "node": "HTTP Request1",
+              "node": "HTTP Request - Crop Plan Photo",
               "type": "main",
               "index": 0
             }
@@ -7169,36 +7323,36 @@
         "main": [
           [
             {
-              "node": "Code - Build GPT4o Payload",
+              "node": "Code - Build Vision Payload",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Code - Build GPT4o Payload": {
+      "Code - Build Vision Payload": {
         "main": [
           [
             {
-              "node": "HTTP Request - GPT4o",
+              "node": "HTTP Request - GPT4o Vision",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "HTTP Request - GPT4o": {
+      "HTTP Request - GPT4o Vision": {
         "main": [
           [
             {
-              "node": "Code - Parse GPT4o Response",
+              "node": "Code - Build Classification Payload",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Code - Parse GPT4o Response": {
+      "Code - Parse Classification Response": {
         "main": [
           [
             {
@@ -7330,7 +7484,7 @@
         "main": [
           [
             {
-              "node": "HTTP Request - Upload Converted Plan",
+              "node": "HTTP Request - Crop Plan PDF",
               "type": "main",
               "index": 0
             }
@@ -7512,6 +7666,72 @@
             }
           ]
         ]
+      },
+      "HTTP Request - Crop Plan PDF": {
+        "main": [
+          [
+            {
+              "node": "Code - Crop Fallback PDF",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Crop Plan Photo": {
+        "main": [
+          [
+            {
+              "node": "Code - Crop Fallback Photo",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Crop Fallback Photo": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Crop Fallback PDF": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Upload Converted Plan",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Build Classification Payload": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - GPT4o Classify",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - GPT4o Classify": {
+        "main": [
+          [
+            {
+              "node": "Code - Parse Classification Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Admin Admin",
@@ -7520,18 +7740,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-22T19:26:02.754Z",
-        "id": 258,
+        "createdAt": "2026-03-25T06:48:02.837Z",
+        "id": 301,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
-        "event": "activated",
-        "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
-      },
-      {
-        "createdAt": "2026-03-22T19:26:11.222Z",
-        "id": 259,
-        "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "1ce63333-70c5-4ab0-9e17-3d4113c4f206",
+        "versionId": "430512f7-c6cc-4ee8-a30d-486aa4ba320a",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       }
