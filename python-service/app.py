@@ -352,11 +352,17 @@ def annotate_changes():
         line_w = max(4, int(min(width, height) * 0.008))
 
         affected_ids = change.get('affected_room_ids') or [change.get('room_id', '')]
+        change_type  = change.get('type', '')
+
+        # Types that involve a physical wall: Hough search makes sense.
+        # Internal changes (fixtures, doorways, other) → badge-only, no wall search.
+        WALL_TYPES = {'wall_removal', 'wall_addition', 'room_merge', 'room_split'}
+        needs_wall_search = change_type in WALL_TYPES
 
         drawn_segment = None  # (x1, y1, x2, y2) pixels
         badge_pos = None
 
-        if len(affected_ids) >= 2:
+        if needs_wall_search and len(affected_ids) >= 2:
             # Wall between two rooms: centroid-strip Hough search
             r1 = room_map.get(affected_ids[0], {})
             r2 = room_map.get(affected_ids[1], {})
@@ -369,8 +375,8 @@ def annotate_changes():
                 if badge_pos is None:
                     badge_pos = c1
 
-        elif len(affected_ids) == 1:
-            # Single room: find longest wall line inside room bbox
+        elif needs_wall_search and len(affected_ids) == 1:
+            # Single-room wall change: find longest wall line inside room bbox
             room = room_map.get(affected_ids[0], {})
             poly = region_to_polygon(
                 room.get('polygon') or room.get('region_percent', {}), width, height
