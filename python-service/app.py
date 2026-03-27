@@ -271,6 +271,67 @@ def crop_plan():
         return json.dumps({"error": str(e)}), 500, {'Content-Type': 'application/json'}
 
 
+def find_rooms_geometric(image_bytes):
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    h_img, w_img = img.shape[:2]
+
+    # 1. Переводим в ЧБ и инвертируем
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # Адаптивный порог поможет выделить стены даже при плохом свете
+    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY_INV, 21, 10)
+
+    # 2. Убираем шум (текст и размерные линии)
+    kernel = np.ones((5, 5), np.uint8)
+    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    # "Сшиваем" стены, если в них были дыры (двери)
+    closing_kernel = np.ones((10, 10), np.uint8)
+    closed = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, closing_kernel)
+
+    # 3. Поиск внешних контуров (только комнаты)
+    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    detected_rooms = []
+
+    for i, cnt in enumerate(contours):
+        area = cv2.contourArea(cnt)
+        # Фильтр площади: игнорируем объекты меньше 2% от всего плана (мусор)
+        if area > (h_img * w_img * 0.02):
+            x, y, w, h = cv2.boundingRect(cnt)
+
+            # Переводим пиксели в проценты
+            x1_pct = round((x / w_img) * 100, 1)
+            y1_pct = round((y / h_img) * 100, 1)
+            x2_pct = round(((x + w) / w_img) * 100, 1)
+            y2_pct = round(((y + h) / h_img) * 100, 1)
+
+            detected_rooms.append({
+                "internal_id": f"geo_room_{i}",
+                "bbox": {"x1": x1_pct, "y1": y1_pct, "x2": x2_pct, "y2": y2_pct},
+                "area_px": area
+            })
+
+    # Сортируем комнаты слева направо, сверху вниз
+    detected_rooms.sort(key=lambda r: (r['bbox']['y1'], r['bbox']['x1']))
+    return detected_rooms
+
+
+@app.route('/detect-rooms', methods=['POST'])
+def detect_rooms():
+    """
+    Geometrically detects rooms in a floor plan image.
+    Input:  multipart/form-data { image: <binary> }
+    Output: JSON { detected_rooms: [...] }
+    """
+    if 'image' not in request.files:
+        return {'error': 'No image provided'}, 400
+
+    image_bytes = request.files['image'].read()
+    rooms = find_rooms_geometric(image_bytes)
+    return json.dumps({"detected_rooms": rooms}), 200, {'Content-Type': 'application/json'}
+
+
 @app.route('/annotate-rooms', methods=['POST'])
 def annotate_rooms():
     """
