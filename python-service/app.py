@@ -480,6 +480,92 @@ def process_shots():
         return json.dumps({"error": str(e)}), 500, {'Content-Type': 'application/json'}
 
 
+def process_full_photo(img, ai_json):
+    h_img, w_img = img.shape[:2]
+
+    # 1. Находим лист бумаги на столе
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh_paper = cv2.threshold(blurred, 150, 255, cv2.THRESH_BINARY)
+
+    contours_paper, _ = cv2.findContours(thresh_paper, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours_paper:
+        return ai_json  # Если лист не найден, возвращаем как есть
+
+    # Берем самый большой контур (лист БТИ)
+    paper_cnt = max(contours_paper, key=cv2.contourArea)
+    px, py, pw, ph = cv2.boundingRect(paper_cnt)
+
+    # 2. Ищем комнаты ТОЛЬКО внутри области листа
+    roi = gray[py:py + ph, px:px + pw]
+    thresh_rooms = cv2.adaptiveThreshold(roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                         cv2.THRESH_BINARY_INV, 11, 2)
+
+    # "Жирним" стены внутри листа
+    kernel = np.ones((3, 3), np.uint8)
+    dilated = cv2.dilate(thresh_rooms, kernel, iterations=1)
+    contours_rooms, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    geo_rooms = []
+    for cnt in contours_rooms:
+        if cv2.contourArea(cnt) > (pw * ph * 0.01):  # Минимум 1% от площади листа
+            rx, ry, rw, rh = cv2.boundingRect(cnt)
+            geo_rooms.append({
+                'x1': ((px + rx) / w_img) * 100,
+                'y1': ((py + ry) / h_img) * 100,
+                'x2': ((px + rx + rw) / w_img) * 100,
+                'y2': ((py + ry + rh) / h_img) * 100
+            })
+
+    # 3. Приземляем точки ИИ в найденные гео-комнаты
+    for shot in ai_json.get('shots', []):
+        raw_x = shot.get('x', 50)
+        raw_y = shot.get('y', 50)
+
+        for room in geo_rooms:
+            if room['x1'] <= raw_x <= room['x2'] and room['y1'] <= raw_y <= room['y2']:
+                margin_w = (room['x2'] - room['x1']) * 0.15
+                margin_h = (room['y2'] - room['y1']) * 0.15
+
+                if shot.get('position') == "центр":
+                    shot['x'] = round(room['x1'] + (room['x2'] - room['x1']) / 2, 1)
+                    shot['y'] = round(room['y1'] + (room['y2'] - room['y1']) / 2, 1)
+                else:
+                    shot['x'] = round(max(room['x1'] + margin_w, min(raw_x, room['x2'] - margin_w)), 1)
+                    shot['y'] = round(max(room['y1'] + margin_h, min(raw_y, room['y2'] - margin_h)), 1)
+                break
+
+    return ai_json
+
+
+@app.route('/process', methods=['POST'])
+def handle():
+    """
+    Snaps AI shot points into safe positions within detected room boundaries.
+    Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON>
+    Output: JSON (updated ai_json with corrected shot coordinates)
+    """
+    ai_data_raw = request.args.get('ai_data')
+    if not ai_data_raw:
+        return json.dumps({"error": "No ai_data in URL"}), 400, {'Content-Type': 'application/json'}
+
+    ai_json = json.loads(ai_data_raw)
+    if isinstance(ai_json, list):
+        ai_json = ai_json[0]
+
+    file = request.files.get('image')
+    if not file:
+        return json.dumps({"error": "No image in body"}), 400, {'Content-Type': 'application/json'}
+
+    img_array = np.frombuffer(file.read(), np.uint8)
+    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    if img is None:
+        return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
+
+    result = process_full_photo(img, ai_json)
+    return json.dumps(result), 200, {'Content-Type': 'application/json'}
+
+
 @app.route('/detect-rooms-with-shots', methods=['POST'])
 def detect_rooms_with_shots():
     """
