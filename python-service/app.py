@@ -1,6 +1,7 @@
 from flask import Flask, request, send_file
 from pdf2image import convert_from_bytes
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
+import os
 import io
 import json
 import math
@@ -397,68 +398,78 @@ def process_full_photo(img, ai_json):
     return ai_json
 
 
+def get_font(size):
+    """Ищем доступный кириллический шрифт на сервере"""
+    paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+    ]
+    for path in paths:
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default()
+
+
+def draw_text_pil(img, text, position, color=(255, 0, 0), font_size=20):
+    img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+    font = get_font(font_size)
+    draw.text(position, text, font=font, fill=color)
+    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
+
 @app.route('/process-shots', methods=['POST'])
 def process_shots():
     """
-    Draws room bounding boxes and shot points on the image.
+    Draws room bounding boxes and shot points on the image using PIL for Cyrillic support.
     Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON {rooms, shots}>
     Output: JPEG with annotated rooms and shot positions
     """
     try:
-        # 1. Получаем данные из URL (ai_data)
+        # 1. Данные из URL
         ai_data_raw = request.args.get('ai_data')
         if not ai_data_raw:
             return json.dumps({"error": "No ai_data in URL"}), 400, {'Content-Type': 'application/json'}
-
-        # Декодируем JSON (n8n может прислать массив в массиве)
         data = json.loads(ai_data_raw)
         if isinstance(data, list):
             data = data[0]
 
-        # 2. Получаем изображение из body
+        # 2. Картинка из body
         file = request.files.get('image')
         if not file:
             return json.dumps({"error": "No image in body"}), 400, {'Content-Type': 'application/json'}
-
-        img_bytes = file.read()
-        nparr = np.frombuffer(img_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
+        img_array = np.frombuffer(file.read(), np.uint8)
+        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
         if img is None:
             return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
-
         h, w = img.shape[:2]
 
-        # 3. Отрисовка комнат (массив rooms)
+        # 3. Рисуем комнаты (синие рамки)
         for room in data.get('rooms', []):
-            bbox = room.get('bbox', {})
-            x1 = int(bbox['x1'] * w / 100)
-            y1 = int(bbox['y1'] * h / 100)
-            x2 = int(bbox['x2'] * w / 100)
-            y2 = int(bbox['y2'] * h / 100)
+            b = room.get('bbox', {})
+            x1, y1 = int(b['x1'] * w / 100), int(b['y1'] * h / 100)
+            x2, y2 = int(b['x2'] * w / 100), int(b['y2'] * h / 100)
 
             cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
-            label = room.get('name', room.get('id', 'Room'))
-            cv2.putText(img, label, (x1, max(y1 - 10, 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
 
-        # 4. Отрисовка точек съемки (массив shots)
+            name = room.get('name', '')
+            if "Определяется" in name:
+                name = room.get('id', '')
+            img = draw_text_pil(img, name, (x1 + 5, y1 + 5), color=(255, 0, 0), font_size=24)
+
+        # 4. Рисуем точки (красные круги)
         for shot in data.get('shots', []):
-            sx = int(shot['x'] * w / 100)
-            sy = int(shot['y'] * h / 100)
+            sx, sy = int(shot['x'] * w / 100), int(shot['y'] * h / 100)
+            cv2.circle(img, (sx, sy), 8, (0, 0, 255), -1)
+            cv2.circle(img, (sx, sy), 8, (255, 255, 255), 2)
 
-            cv2.circle(img, (sx, sy), 12, (0, 0, 255), -1)
-            cv2.circle(img, (sx, sy), 12, (255, 255, 255), 2)
+            label = shot.get('pos', '')
+            img = draw_text_pil(img, label, (sx + 10, sy - 15), color=(0, 0, 0), font_size=16)
 
-            pos_text = shot.get('pos', 'Point')
-            cv2.putText(img, pos_text, (sx + 15, sy + 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
-
-        # 5. Возвращаем аннотированное изображение
-        _, buffer = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
-        io_buf = io.BytesIO(buffer)
-        io_buf.seek(0)
-        return send_file(io_buf, mimetype='image/jpeg')
+        # 5. Вывод
+        _, buffer = cv2.imencode('.jpg', img)
+        return send_file(io.BytesIO(buffer), mimetype='image/jpeg')
 
     except Exception as e:
         return json.dumps({"error": str(e)}), 500, {'Content-Type': 'application/json'}
