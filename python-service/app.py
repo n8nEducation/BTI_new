@@ -400,34 +400,68 @@ def process_full_photo(img, ai_json):
 @app.route('/process-shots', methods=['POST'])
 def process_shots():
     """
-    Parses ai_data (array or object) and image, returns received rooms count.
-    Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON>
-    Output: JSON { status, received_rooms }
+    Draws room bounding boxes and shot points on the image.
+    Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON {rooms, shots}>
+    Output: JPEG with annotated rooms and shot positions
     """
-    ai_data_str = request.args.get('ai_data')
-    if not ai_data_str:
-        return json.dumps({"error": "Missing ai_data"}), 400, {'Content-Type': 'application/json'}
-
     try:
-        data = json.loads(ai_data_str)
-        # Если данные пришли как массив [{ rooms: [...], shots: [...] }]
-        actual_data = data[0] if isinstance(data, list) else data
+        # 1. Получаем данные из URL (ai_data)
+        ai_data_raw = request.args.get('ai_data')
+        if not ai_data_raw:
+            return json.dumps({"error": "No ai_data in URL"}), 400, {'Content-Type': 'application/json'}
+
+        # Декодируем JSON (n8n может прислать массив в массиве)
+        data = json.loads(ai_data_raw)
+        if isinstance(data, list):
+            data = data[0]
+
+        # 2. Получаем изображение из body
+        file = request.files.get('image')
+        if not file:
+            return json.dumps({"error": "No image in body"}), 400, {'Content-Type': 'application/json'}
+
+        img_bytes = file.read()
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if img is None:
+            return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
+
+        h, w = img.shape[:2]
+
+        # 3. Отрисовка комнат (массив rooms)
+        for room in data.get('rooms', []):
+            bbox = room.get('bbox', {})
+            x1 = int(bbox['x1'] * w / 100)
+            y1 = int(bbox['y1'] * h / 100)
+            x2 = int(bbox['x2'] * w / 100)
+            y2 = int(bbox['y2'] * h / 100)
+
+            cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            label = room.get('name', room.get('id', 'Room'))
+            cv2.putText(img, label, (x1, max(y1 - 10, 20)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+
+        # 4. Отрисовка точек съемки (массив shots)
+        for shot in data.get('shots', []):
+            sx = int(shot['x'] * w / 100)
+            sy = int(shot['y'] * h / 100)
+
+            cv2.circle(img, (sx, sy), 12, (0, 0, 255), -1)
+            cv2.circle(img, (sx, sy), 12, (255, 255, 255), 2)
+
+            pos_text = shot.get('pos', 'Point')
+            cv2.putText(img, pos_text, (sx + 15, sy + 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+
+        # 5. Возвращаем аннотированное изображение
+        _, buffer = cv2.imencode('.jpg', img, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+        io_buf = io.BytesIO(buffer)
+        io_buf.seek(0)
+        return send_file(io_buf, mimetype='image/jpeg')
+
     except Exception as e:
-        return json.dumps({"error": f"Invalid JSON: {str(e)}"}), 400, {'Content-Type': 'application/json'}
-
-    file = request.files.get('image')
-    if not file:
-        return json.dumps({"error": "No image file provided"}), 400, {'Content-Type': 'application/json'}
-
-    img_array = np.frombuffer(file.read(), np.uint8)
-    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-    if img is None:
-        return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
-
-    rooms = actual_data.get('rooms', [])
-    shots = actual_data.get('shots', [])
-
-    return json.dumps({"status": "success", "received_rooms": len(rooms), "received_shots": len(shots)}), 200, {'Content-Type': 'application/json'}
+        return json.dumps({"error": str(e)}), 500, {'Content-Type': 'application/json'}
 
 
 @app.route('/detect-rooms-with-shots', methods=['POST'])
