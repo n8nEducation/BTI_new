@@ -199,12 +199,57 @@ def convert_pdf():
     return send_file(img_io, mimetype='image/png', download_name='plan.png')
 
 
+def hard_crop(image):
+    # 1. Работаем с яркостью (L) в пространстве LAB, чтобы игнорировать цветовые шумы
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR_LAB)
+    l_channel, a, b = cv2.split(lab)
+
+    # 2. Сильно размываем, чтобы слить текст и стены в единое белое пятно листа
+    blurred = cv2.GaussianBlur(l_channel, (15, 15), 0)
+
+    # 3. Принудительный порог: всё, что ярче 150-180 (лист), станет белым, остальное (стол) - черным
+    # Мы используем метод TRIANGLE, он лучше Оцу работает, когда фона (стола) в кадре больше, чем объекта
+    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE)
+
+    # 4. Убираем "дыры" внутри листа (черные буквы) морфологией
+    kernel = np.ones((20, 20), np.uint8)
+    mask = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.dilate(mask, kernel, iterations=1)
+
+    # 5. Находим самый крупный контур
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if not contours:
+        return image
+
+    max_cnt = max(contours, key=cv2.contourArea)
+
+    # 6. Вместо boundingRect используем minAreaRect, чтобы учесть поворот листа
+    rect = cv2.minAreaRect(max_cnt)
+    box = cv2.boxPoints(rect)
+    box = np.int0(box)
+
+    # 7. Обрезаем по крайним точкам найденного контура
+    x, y, w, h = cv2.boundingRect(max_cnt)
+
+    # Защита: если область меньше 15% картинки - это ошибка, не режем
+    if w < image.shape[1] * 0.15 or h < image.shape[0] * 0.15:
+        return image
+
+    # Вырезаем с небольшим запасом 10 пикселей
+    pad = 10
+    crop = image[max(0, y - pad):min(image.shape[0], y + h + pad),
+                 max(0, x - pad):min(image.shape[1], x + w + pad)]
+    return crop
+
+
 @app.route('/crop-plan', methods=['POST'])
 def crop_plan():
     """
-    Finds the largest closed contour (apartment outline) and returns a cropped image.
-    Input:  multipart/form-data { image: <PNG binary> }
-    Output: PNG binary (cropped)
+    Finds the sheet boundary in the image (e.g. photo of a plan on a table) and returns a cropped image.
+    Uses LAB lightness + TRIANGLE threshold + morphology to isolate the document sheet.
+    Input:  multipart/form-data { image: <PNG/JPG binary> }
+    Output: JPEG binary (cropped)
     """
     if 'image' not in request.files:
         return {'error': 'No image provided'}, 400
@@ -216,44 +261,12 @@ def crop_plan():
     if img_cv is None:
         return {'error': 'Failed to decode image'}, 400
 
-    h, w = img_cv.shape[:2]
-    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    dilated = cv2.dilate(thresh, kernel, iterations=3)
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    final_img = hard_crop(img_cv)
 
-    if not contours:
-        img_io = io.BytesIO(img_bytes)
-        img_io.seek(0)
-        return send_file(img_io, mimetype='image/png', download_name='cropped_plan.png')
-
-    min_area = (w * h) * 0.05
-    valid = [c for c in contours if cv2.contourArea(c) >= min_area]
-    if not valid:
-        img_io = io.BytesIO(img_bytes)
-        img_io.seek(0)
-        return send_file(img_io, mimetype='image/png', download_name='cropped_plan.png')
-
-    largest = max(valid, key=cv2.contourArea)
-    x, y, bw, bh = cv2.boundingRect(largest)
-    margin_x = max(10, int(w * 0.01))
-    margin_y = max(10, int(h * 0.01))
-    x1 = max(0, x - margin_x)
-    y1 = max(0, y - margin_y)
-    x2 = min(w, x + bw + margin_x)
-    y2 = min(h, y + bh + margin_y)
-
-    if (x2 - x1) * (y2 - y1) < w * h * 0.30:
-        img_io = io.BytesIO(img_bytes)
-        img_io.seek(0)
-        return send_file(img_io, mimetype='image/png', download_name='cropped_plan.png')
-
-    cropped_cv = img_cv[y1:y2, x1:x2]
-    _, buf = cv2.imencode('.png', cropped_cv)
+    _, buf = cv2.imencode('.jpg', final_img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     img_io = io.BytesIO(buf.tobytes())
     img_io.seek(0)
-    return send_file(img_io, mimetype='image/png', download_name='cropped_plan.png')
+    return send_file(img_io, mimetype='image/jpeg', download_name='cropped_plan.jpg')
 
 
 @app.route('/annotate-rooms', methods=['POST'])
