@@ -397,6 +397,39 @@ def process_full_photo(img, ai_json):
     return ai_json
 
 
+@app.route('/process-shots', methods=['POST'])
+def process_shots():
+    """
+    Parses ai_data (array or object) and image, returns received rooms count.
+    Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON>
+    Output: JSON { status, received_rooms }
+    """
+    ai_data_str = request.args.get('ai_data')
+    if not ai_data_str:
+        return json.dumps({"error": "Missing ai_data"}), 400, {'Content-Type': 'application/json'}
+
+    try:
+        data = json.loads(ai_data_str)
+        # Если данные пришли как массив [{ rooms: [...], shots: [...] }]
+        actual_data = data[0] if isinstance(data, list) else data
+    except Exception as e:
+        return json.dumps({"error": f"Invalid JSON: {str(e)}"}), 400, {'Content-Type': 'application/json'}
+
+    file = request.files.get('image')
+    if not file:
+        return json.dumps({"error": "No image file provided"}), 400, {'Content-Type': 'application/json'}
+
+    img_array = np.frombuffer(file.read(), np.uint8)
+    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    if img is None:
+        return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
+
+    rooms = actual_data.get('rooms', [])
+    shots = actual_data.get('shots', [])
+
+    return json.dumps({"status": "success", "received_rooms": len(rooms), "received_shots": len(shots)}), 200, {'Content-Type': 'application/json'}
+
+
 @app.route('/detect-rooms-with-shots', methods=['POST'])
 def detect_rooms_with_shots():
     """
