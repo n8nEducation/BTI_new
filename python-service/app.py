@@ -7,6 +7,8 @@ import json
 import math
 import cv2
 import numpy as np
+import torch
+import torch.nn as nn
 
 app = Flask(__name__)
 
@@ -1071,30 +1073,92 @@ def _draw_shot_points(image, points_description, rooms_corners):
             cv2.putText(image, label, (x + 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
 
+class UNet(nn.Module):
+    def __init__(self):
+        super(UNet, self).__init__()
+        self.enc1 = self.conv_block(3, 64)
+        self.enc2 = self.conv_block(64, 128)
+        self.pool = nn.MaxPool2d(2)
+        self.dec1 = self.conv_block(128, 64)
+        self.final = nn.Conv2d(64, 1, kernel_size=1)
+        self.sigmoid = nn.Sigmoid()
+
+    def conv_block(self, in_c, out_c):
+        return nn.Sequential(
+            nn.Conv2d(in_c, out_c, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_c, out_c, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        e1 = self.enc1(x)
+        e2 = self.enc2(self.pool(e1))
+        d1 = self.dec1(e2)
+        return self.sigmoid(self.final(d1))
+
+
+_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+_unet_model = UNet().to(_device)
+# _unet_model.load_state_dict(torch.load('floorplan_unet_weights.pth', map_location=_device))
+_unet_model.eval()
+
+
+def segment_walls(image):
+    h, w = image.shape[:2]
+    img_resized = cv2.resize(image, (512, 512))
+    img_input = img_resized.transpose(2, 0, 1) / 255.0
+    img_input = torch.tensor(img_input, dtype=torch.float32).unsqueeze(0).to(_device)
+    with torch.no_grad():
+        prediction = _unet_model(img_input)
+    mask = (prediction.squeeze().cpu().numpy() > 0.5).astype(np.uint8) * 255
+    return cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+
+
+def get_rooms_from_mask(wall_mask):
+    rooms_mask = cv2.bitwise_not(wall_mask)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    rooms_mask = cv2.morphologyEx(rooms_mask, cv2.MORPH_OPEN, kernel)
+    contours, _ = cv2.findContours(rooms_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    rooms_data = []
+    h, w = wall_mask.shape[:2]
+    min_area = (h * w) * 0.01
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area > min_area:
+            epsilon = 0.01 * cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, epsilon, True)
+            M = cv2.moments(cnt)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+            else:
+                cx, cy = 0, 0
+            polygon_norm = [{"x": round(pt[0][0] / w, 4), "y": round(pt[0][1] / h, 4)} for pt in approx]
+            center_norm = {"x": round(cx / w, 4), "y": round(cy / h, 4)}
+            rooms_data.append({
+                "id": f"room_{len(rooms_data) + 1}",
+                "area_px": area,
+                "polygon": polygon_norm,
+                "center": center_norm
+            })
+    return rooms_data
+
+
 @app.route('/draw-shots', methods=['POST'])
 def handle_draw_shots():
     if 'image' not in request.files:
         return jsonify({"error": "No image file provided"}), 400
 
-    shots_param = request.args.get('shots_json')
-    if not shots_param:
-        return jsonify({"error": "No shots_json query parameter provided"}), 400
-
-    image_bytes = request.files['image'].read()
-    parsed = json.loads(shots_param)
-    points_description = {"shots": parsed} if isinstance(parsed, list) else parsed
-
+    file = request.files['image']
+    image_bytes = file.read()
     image_array = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-    processed = _preprocess_image(image)
-    contours = _find_room_contours(processed)
-    rooms_corners = _get_room_corners(contours)
+    wall_mask = segment_walls(image)
+    rooms_data = get_rooms_from_mask(wall_mask)
 
-    _draw_shot_points(image, points_description, rooms_corners)
-
-    _, buffer = cv2.imencode('.png', image)
-    return send_file(io.BytesIO(buffer.tobytes()), mimetype='image/png')
+    return jsonify({"rooms": rooms_data})
 
 
 if __name__ == '__main__':
