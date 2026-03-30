@@ -947,5 +947,68 @@ def detect_rooms():
         return jsonify({"error": str(e)}), 500
 
 
+def process_bti_plan(image_bytes):
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    if img is None:
+        return {"error": "Failed to decode image"}
+
+    h, w = img.shape[:2]
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    denoised = cv2.medianBlur(gray, 5)
+    thresh = cv2.adaptiveThreshold(denoised, 255,
+                                   cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY_INV, 15, 6)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (11, 11))
+    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+    contours, hierarchy = cv2.findContours(morph, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+
+    rooms = []
+    min_area_percent = 0.01
+    total_area = h * w
+
+    for i, cnt in enumerate(contours):
+        area = cv2.contourArea(cnt)
+        if area < (total_area * min_area_percent):
+            continue
+
+        epsilon = 0.015 * cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, epsilon, True)
+
+        M = cv2.moments(cnt)
+        if M["m00"] != 0:
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+        else:
+            cx, cy = 0, 0
+
+        polygon_norm = [{"x": round(pt[0][0] / w, 5), "y": round(pt[0][1] / h, 5)} for pt in approx]
+        center_norm = {"x": round(cx / w, 5), "y": round(cy / h, 5)}
+
+        rooms.append({
+            "id": f"room_{len(rooms) + 1}",
+            "area_px": area,
+            "polygon": polygon_norm,
+            "center": center_norm
+        })
+
+    return {"rooms": rooms, "info": {"original_width": w, "original_height": h}}
+
+
+@app.route('/extract-rooms', methods=['POST'])
+def handle_extract_rooms():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files['image']
+    image_bytes = file.read()
+
+    result = process_bti_plan(image_bytes)
+    return jsonify(result)
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
