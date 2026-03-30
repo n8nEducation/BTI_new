@@ -1076,9 +1076,9 @@ def handle_draw_shots():
     if 'image' not in request.files:
         return jsonify({"error": "No image file provided"}), 400
 
-    shots_param = request.args.get('shots')
+    shots_param = request.headers.get('X-Shots')
     if not shots_param:
-        return jsonify({"error": "No shots query parameter provided"}), 400
+        return jsonify({"error": "No X-Shots header provided"}), 400
 
     image_bytes = request.files['image'].read()
     points_description = json.loads(shots_param)
