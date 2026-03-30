@@ -1075,11 +1075,13 @@ def _draw_shot_points(image, points_description, rooms_corners):
 def handle_draw_shots():
     if 'image' not in request.files:
         return jsonify({"error": "No image file provided"}), 400
-    if 'shots_json' not in request.form:
-        return jsonify({"error": "No shots_json provided"}), 400
+
+    shots_param = request.args.get('shots')
+    if not shots_param:
+        return jsonify({"error": "No shots query parameter provided"}), 400
 
     image_bytes = request.files['image'].read()
-    points_description = json.loads(request.form['shots_json'])
+    points_description = json.loads(shots_param)
 
     image_array = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
