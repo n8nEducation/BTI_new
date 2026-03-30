@@ -1076,13 +1076,12 @@ def handle_draw_shots():
     if 'image' not in request.files:
         return jsonify({"error": "No image file provided"}), 400
 
-    shots_param = request.headers.get('X-Shots')
+    shots_param = request.args.get('shots_json')
     if not shots_param:
-        return jsonify({"error": "No X-Shots header provided"}), 400
+        return jsonify({"error": "No shots_json query parameter provided"}), 400
 
-    import base64 as _base64
     image_bytes = request.files['image'].read()
-    points_description = json.loads(_base64.b64decode(shots_param).decode('utf-8'))
+    points_description = json.loads(shots_param)
 
     image_array = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
