@@ -1081,7 +1081,8 @@ def handle_draw_shots():
         return jsonify({"error": "No shots_json query parameter provided"}), 400
 
     image_bytes = request.files['image'].read()
-    points_description = json.loads(shots_param)
+    parsed = json.loads(shots_param)
+    points_description = {"shots": parsed} if isinstance(parsed, list) else parsed
 
     image_array = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
