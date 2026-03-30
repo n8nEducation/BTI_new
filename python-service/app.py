@@ -1010,76 +1010,13 @@ def handle_extract_rooms():
     return jsonify(result)
 
 
-def _preprocess_image(image):
+def _preprocess_image_shots(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    _, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    kernel = np.ones((3, 3), np.uint8)
-    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
-    return morph
-
-
-def _find_room_contours(processed_image):
-    contours, _ = cv2.findContours(processed_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    return contours
-
-
-def _get_room_corners(contours, min_area=1000):
-    rooms = []
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area > min_area:
-            approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
-            if len(approx) == 4:
-                corners = approx.reshape(4, 2)
-                rooms.append(corners.tolist())
-    return rooms
-
-
-def _get_coordinates_from_description(description, room_corners):
-    x, y = 0, 0
-    if "у окна" in description:
-        x = (room_corners[0][0] + room_corners[1][0]) // 2
-        y = room_corners[0][1] + 10
-    elif "у двери" in description:
-        x = (room_corners[2][0] + room_corners[3][0]) // 2
-        y = room_corners[2][1] - 10
-    elif "в углу" in description:
-        x, y = room_corners[0]
-    elif "в центре" in description:
-        x = (room_corners[0][0] + room_corners[2][0]) // 2
-        y = (room_corners[0][1] + room_corners[2][1]) // 2
-    elif "у входа" in description:
-        x = (room_corners[2][0] + room_corners[3][0]) // 2
-        y = room_corners[2][1] - 10
-    elif "у противоположной стены" in description:
-        x = (room_corners[0][0] + room_corners[1][0]) // 2
-        y = room_corners[0][1] + 10
-    return (x, y)
-
-
-def _draw_shot_points(image, points_description, rooms_corners):
-    for shot in points_description.get("shots", []):
-        room_id = shot.get("room_id", "room_1")
-        position = shot.get("position", "")
-        label = shot.get("shot_id", "")
-        room_index = int(room_id.split("_")[1]) - 1
-        if room_index < len(rooms_corners):
-            room_corners = rooms_corners[room_index]
-            x, y = _get_coordinates_from_description(position, room_corners)
-            cv2.circle(image, (x, y), 5, (0, 0, 255), -1)
-            cv2.putText(image, label, (x + 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-
-
-def _preprocess_for_bti(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    thresh = cv2.adaptiveThreshold(
-        blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY_INV, 11, 2
-    )
+    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                   cv2.THRESH_BINARY_INV, 11, 2)
     kernel = np.ones((9, 9), np.uint8)
-    return cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+    return morph
 
 
 def _get_rooms_data(processed_image):
@@ -1092,11 +1029,11 @@ def _get_rooms_data(processed_image):
     for i, cnt in enumerate(contours):
         area = cv2.contourArea(cnt)
         if hierarchy[0][i][3] != -1 and area > min_area:
-            x, y, rw, rh = cv2.boundingRect(cnt)
+            rect = cv2.boundingRect(cnt)
             M = cv2.moments(cnt)
-            cx = int(M["m10"] / M["m00"]) if M["m00"] != 0 else x + rw // 2
-            cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else y + rh // 2
-            rooms.append({"bbox": (x, y, rw, rh), "center": (cx, cy), "area": area})
+            cx = int(M["m10"] / M["m00"]) if M["m00"] != 0 else rect[0] + rect[2] // 2
+            cy = int(M["m01"] / M["m00"]) if M["m00"] != 0 else rect[1] + rect[3] // 2
+            rooms.append({"bbox": rect, "center": (cx, cy)})
     rooms.sort(key=lambda r: (r["center"][1], r["center"][0]))
     return rooms
 
@@ -1105,12 +1042,12 @@ def _calculate_point(description, room):
     x, y, w, h = room["bbox"]
     cx, cy = room["center"]
     desc = description.lower()
-    if "у окна" in desc or "у противоположной стены" in desc:
+    if "окно" in desc:
         return (cx, y + int(h * 0.15))
-    elif "у двери" in desc or "у входа" in desc:
+    if "двер" in desc or "вход" in desc:
         return (cx, y + int(h * 0.85))
-    elif "в углу" in desc:
-        return (x + int(w * 0.15), y + int(h * 0.15))
+    if "угол" in desc or "углу" in desc:
+        return (x + int(w * 0.2), y + int(h * 0.2))
     return (cx, cy)
 
 
@@ -1119,27 +1056,34 @@ def handle_draw_shots():
     try:
         if 'image' not in request.files:
             return jsonify({"error": "No image file"}), 400
-        shots_json = request.form.get('shots_json')
-        if not shots_json:
-            return jsonify({"error": "No shots_json provided"}), 400
-        shots_data = json.loads(shots_json)
+
+        shots_json_raw = request.form.get('shots_json')
+        if not shots_json_raw:
+            return jsonify({"error": "No shots_json in body"}), 400
+
+        shots_data = json.loads(shots_json_raw)
+
         img_array = np.frombuffer(request.files['image'].read(), np.uint8)
         image = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-        processed = _preprocess_for_bti(image)
+
+        processed = _preprocess_image_shots(image)
         rooms = _get_rooms_data(processed)
+
         for shot in shots_data:
             try:
                 r_idx = int(shot.get("room_id", "room_1").split("_")[1]) - 1
-            except Exception:
-                r_idx = 0
-            if 0 <= r_idx < len(rooms):
-                px, py = _calculate_point(shot.get("position", ""), rooms[r_idx])
-                cv2.circle(image, (px, py), 10, (0, 0, 255), -1)
-                cv2.circle(image, (px, py), 11, (255, 255, 255), 2)
-                cv2.putText(image, shot.get("shot_id", ""), (px + 15, py + 5),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                if 0 <= r_idx < len(rooms):
+                    px, py = _calculate_point(shot.get("position", ""), rooms[r_idx])
+                    cv2.circle(image, (px, py), 12, (0, 0, 255), -1)
+                    cv2.circle(image, (px, py), 14, (255, 255, 255), 2)
+                    cv2.putText(image, shot.get("shot_id", ""), (px + 15, py - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            except:
+                continue
+
         _, buffer = cv2.imencode('.png', image)
         return send_file(io.BytesIO(buffer.tobytes()), mimetype='image/png')
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
