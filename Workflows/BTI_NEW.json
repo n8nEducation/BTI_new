@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-04-01T08:25:22.239Z",
+  "updatedAt": "2026-04-02T11:29:08.319Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
@@ -588,6 +588,30 @@
               },
               "renameOutput": true,
               "outputKey": "awaiting_plan"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "collecting-photos-cond-001",
+                    "leftValue": "={{ $json.step }}",
+                    "rightValue": "collecting_photos",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "collecting_photos"
             }
           ]
         },
@@ -939,7 +963,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Geometry Request').first().json.chatId;\n\n// API or HTTP error from shots request\nif (resp.error || !resp.choices || !resp.choices[0]) {\n  const msg = (resp.error && resp.error.message) || 'Ошибка API запроса Точек съёмки';\n  return [{ json: { error: true, chatId: chatId, errorMsg: msg } }];\n}\n\n// Parse shots from second request\nlet shots = [];\ntry {\n  const text = resp.choices[0].message.content;\n  shots = JSON.parse(text).shots || [];\n} catch(e) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось разобрать ответ Гемини. Попробуйте загрузить более чёткий план квартиры.' } }];\n}\n\nif (!shots.length) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось составить задание по плану. Убедитесь что изображение содержит план квартиры.' } }];\n}\n\n// Get rooms + bounds from geometry request (passed through shots request)\nlet rooms = [];\nlet apartment_bounds = null;\ntry { rooms = JSON.parse($('Code - Gemini Shots Request').first().json.rooms || '[]'); } catch(e) {}\ntry { apartment_bounds = JSON.parse($('Code - Gemini Shots Request').first().json.apartment_bounds || 'null'); } catch(e) {}\n\nconst shotsStatus = {};\nshots.forEach(function(s) { shotsStatus[s.shot_id] = 'pending'; });\nconst firstShot = shots[0];\nshotsStatus[firstShot.shot_id] = 'requested';\n\nfunction h(s) {\n  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n}\n\nconst roomsList = rooms.map(function(r) { return '\\u2022 ' + h(r.name); }).join('\\n');\nconst roomsText = '<b>\\u041f\\u043b\\u0430\\u043d \\u043f\\u0440\\u043e\\u0430\\u043d\\u0430\\u043b\\u0438\\u0437\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d!</b>\\n\\u041e\\u0431\\u043d\\u0430\\u0440\\u0443\\u0436\\u0435\\u043d\\u043d\\u044b\\u0435 \\u043f\\u043e\\u043c\\u0435\\u0449\\u0435\\u043d\\u0438\\u044f:\\n' + roomsList\n  + '\\n\\u0412\\u0441\\u0435\\u0433\\u043e \\u0442\\u043e\\u0447\\u0435\\u043a \\u0441\\u044a\\u0451\\u043c\\u043a\\u0438: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '\\uD83D\\uDCF7 <b>\\u0424\\u043e\\u0442\\u043e 1 \\u0438\\u0437 ' + total + '</b>\\n'\n  + '\\uD83C\\uDFE0 ' + h(firstShot.room_name) + '\\n'\n  + '\\uD83D\\uDCCD \\u041f\\u043e\\u0437\\u0438\\u0446\\u0438\\u044f: ' + h(firstShot.position) + '\\n'\n  + '\\u27A1\\uFE0F \\u041d\\u0430\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435: ' + h(firstShot.direction) + '\\n'\n  + h(firstShot.instruction) + '\\n'\n  + '<i>\\u041e\\u0442\\u043f\\u0440\\u0430\\u0432\\u044c\\u0442\\u0435 \\u0444\\u043e\\u0442\\u043e \\u043a\\u0430\\u043a \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442/\\u0444\\u0430\\u0439\\u043b \\u2014 \\u044d\\u0442\\u043e \\u0441\\u043e\\u0445\\u0440\\u0430\\u043d\\u044f\\u0435\\u0442 \\u043a\\u0430\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e</i>';\n\nreturn [{ json: {\n  error:             false,\n  chatId:            chatId,\n  rooms_json:        rooms,\n  apartment_bounds:  apartment_bounds,\n  shots_json:        shots,\n  shots_status:      shotsStatus,\n  rooms_text:        roomsText,\n  first_instruction: firstMsg,\n  total_shots:       total\n} }];"
+        "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Geometry Request').first().json.chatId;\n\n// API or HTTP error from shots request\nif (resp.error || !resp.choices || !resp.choices[0]) {\n  const msg = (resp.error && resp.error.message) || 'Ошибка API запроса Точек съёмки';\n  return [{ json: { error: true, chatId: chatId, errorMsg: msg } }];\n}\n\n// Parse shots from second request\nlet shots = [];\ntry {\n  const text = resp.choices[0].message.content;\n  shots = JSON.parse(text).shots || [];\n} catch(e) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось разобрать ответ Гемини. Попробуйте загрузить более чёткий план квартиры.' } }];\n}\n\nif (!shots.length) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось составить задание по плану. Убедитесь что изображение содержит план квартиры.' } }];\n}\n\n// Get rooms + bounds from geometry request (passed through shots request)\nlet rooms = [];\nlet apartment_bounds = null;\ntry { rooms = JSON.parse($('Code - Gemini Shots Request').first().json.rooms || '[]'); } catch(e) {}\ntry { apartment_bounds = JSON.parse($('Code - Gemini Shots Request').first().json.apartment_bounds || 'null'); } catch(e) {}\n\nconst shotsStatus = {};\nshots.forEach(function(s) { shotsStatus[s.shot_id] = 'pending'; });\n// No auto-request: user selects via inline keyboard buttons\n\n// Build inline keyboard - one button per shot/room\nfunction buildKeyboard(pendingShots) {\n  return {\n    rows: pendingShots.map(function(shot) {\n      return {\n        row: {\n          buttons: [{ text: shot.room_name, additionalFields: { callback_data: shot.shot_id } }]\n        }\n      };\n    })\n  };\n}\nconst keyboardRows = buildKeyboard(shots);\n\nfunction h(s) {\n  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n}\n\nconst roomsList = rooms.map(function(r) { return '\\u2022 ' + h(r.name); }).join('\\n');\nconst roomsText = '<b>\\u041f\\u043b\\u0430\\u043d \\u043f\\u0440\\u043e\\u0430\\u043d\\u0430\\u043b\\u0438\\u0437\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d!</b>\\n\\u041e\\u0431\\u043d\\u0430\\u0440\\u0443\\u0436\\u0435\\u043d\\u043d\\u044b\\u0435 \\u043f\\u043e\\u043c\\u0435\\u0449\\u0435\\u043d\\u0438\\u044f:\\n' + roomsList\n  + '\\n\\u0412\\u0441\\u0435\\u0433\\u043e \\u0442\\u043e\\u0447\\u0435\\u043a \\u0441\\u044a\\u0451\\u043c\\u043a\\u0438: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '\\uD83D\\uDCF7 <b>\\u0424\\u043e\\u0442\\u043e 1 \\u0438\\u0437 ' + total + '</b>\\n'\n  + '\\uD83C\\uDFE0 ' + h(firstShot.room_name) + '\\n'\n  + '\\uD83D\\uDCCD \\u041f\\u043e\\u0437\\u0438\\u0446\\u0438\\u044f: ' + h(firstShot.position) + '\\n'\n  + '\\u27A1\\uFE0F \\u041d\\u0430\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435: ' + h(firstShot.direction) + '\\n'\n  + h(firstShot.instruction) + '\\n'\n  + '<i>\\u041e\\u0442\\u043f\\u0440\\u0430\\u0432\\u044c\\u0442\\u0435 \\u0444\\u043e\\u0442\\u043e \\u043a\\u0430\\u043a \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442/\\u0444\\u0430\\u0439\\u043b \\u2014 \\u044d\\u0442\\u043e \\u0441\\u043e\\u0445\\u0440\\u0430\\u043d\\u044f\\u0435\\u0442 \\u043a\\u0430\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e</i>';\n\nreturn [{ json: {\n  error:             false,\n  chatId:            chatId,\n  rooms_json:        rooms,\n  apartment_bounds:  apartment_bounds,\n  shots_json:        shots,\n  shots_status:      shotsStatus,\n  rooms_text:        roomsText,\n  first_instruction: firstMsg,\n  keyboard_rows:     keyboardRows,\n  total_shots:       total\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1005,7 +1029,9 @@
         "text": "={{ $('Code - Parse Gemini').item.json.first_instruction }}",
         "additionalFields": {
           "appendAttribution": false,
-          "parse_mode": "HTML"
+          "parse_mode": "HTML",
+          "replyMarkup": "inlineKeyboard",
+          "inlineKeyboard": "={{ $('Code - Parse Gemini').item.json.keyboard_rows }}"
         }
       },
       "type": "n8n-nodes-base.telegram",
@@ -1048,7 +1074,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const session = $('Get a row1').first().json;\nconst chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst requestedShotId = Object.keys(shotsStatus).find(id => shotsStatus[id] === 'requested');\nif (!requestedShotId) {\n  throw new Error('Нет активной точки съёмки. Введите /start для перезапуска.');\n}\n\nconst updatedStatus = { ...shotsStatus };\nupdatedStatus[requestedShotId] = 'received';\n\nconst nextShot = shots.find(s => updatedStatus[s.shot_id] === 'pending');\nconst allDone  = !nextShot;\nlet nextStatus = { ...updatedStatus };\nlet nextMessage = '';\n\n// HTML-escape dynamic content from LLM\nfunction h(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\n\nif (!allDone) {\n  nextStatus[nextShot.shot_id] = 'requested';\n  const total     = shots.length;\n  const shotIndex = shots.findIndex(s => s.shot_id === nextShot.shot_id) + 1;\n  nextMessage = '📷 <b>Фото ' + shotIndex + ' из ' + total + '</b>\\n\\n'\n    + '🏠 ' + h(nextShot.room_name) + '\\n'\n    + '📍 Позиция: ' + h(nextShot.position) + '\\n'\n    + '➡️ Направление: ' + h(nextShot.direction) + '\\n\\n'\n    + h(nextShot.instruction) + '\\n\\n'\n    + '<i>Отправьте фото как документ/файл — это сохраняет качество</i>';\n} else {\n  nextMessage = '✅ Все фотографии получены!\\n\\nНачинаю финальный анализ перепланировки. Это займёт 1-2 минуты...';\n}\n\nreturn [{\n  json: {\n    chatId,\n    current_shot_id: requestedShotId,\n    shots_status:    nextStatus,\n    all_done:        allDone,\n    next_message:    nextMessage,\n    upload_path:     'photos/' + chatId + '/' + requestedShotId + '.jpg'\n  },\n  binary: items[0].binary\n}];"
+        "jsCode": "const session = $('Get a row1').first().json;\nconst chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst requestedShotId = Object.keys(shotsStatus).find(function(id) { return shotsStatus[id] === 'requested'; });\nif (!requestedShotId) {\n  throw new Error('\\u041d\\u0435\\u0442 \\u0430\\u043a\\u0442\\u0438\\u0432\\u043d\\u043e\\u0439 \\u0442\\u043e\\u0447\\u043a\\u0438 \\u0441\\u044a\\u0451\\u043c\\u043a\\u0438. \\u0412\\u0432\\u0435\\u0434\\u0438\\u0442\\u0435 /start \\u0434\\u043b\\u044f \\u043f\\u0435\\u0440\\u0435\\u0437\\u0430\\u043f\\u0443\\u0441\\u043a\\u0430.');\n}\n\nconst updatedStatus = Object.assign({}, shotsStatus);\nupdatedStatus[requestedShotId] = 'received';\n\nconst pendingShots = shots.filter(function(s) { return updatedStatus[s.shot_id] === 'pending'; });\nconst allDone = pendingShots.length === 0;\n\nconst receivedCount = shots.filter(function(s) { return updatedStatus[s.shot_id] === 'received'; }).length;\nconst total = shots.length;\n\nlet keyboardRows = null;\nlet nextMessage = '';\n\nif (!allDone) {\n  keyboardRows = {\n    rows: pendingShots.map(function(shot) {\n      return {\n        row: {\n          buttons: [{ text: shot.room_name, additionalFields: { callback_data: shot.shot_id } }]\n        }\n      };\n    })\n  };\n  nextMessage = '\\u2705 \\u0424\\u043e\\u0442\\u043e \\u043f\\u043e\\u043b\\u0443\\u0447\\u0435\\u043d\\u043e! (' + receivedCount + '/' + total + ')\\n\\n\\u0412\\u044b\\u0431\\u0435\\u0440\\u0438\\u0442\\u0435 \\u0441\\u043b\\u0435\\u0434\\u0443\\u044e\\u0449\\u0443\\u044e \\u043a\\u043e\\u043c\\u043d\\u0430\\u0442\\u0443:';\n} else {\n  nextMessage = '\\u2705 \\u0412\\u0441\\u0435 \\u0444\\u043e\\u0442\\u043e\\u0433\\u0440\\u0430\\u0444\\u0438\\u0438 \\u043f\\u043e\\u043b\\u0443\\u0447\\u0435\\u043d\\u044b!\\n\\n\\u041d\\u0430\\u0447\\u0438\\u043d\\u0430\\u044e \\u0444\\u0438\\u043d\\u0430\\u043b\\u044c\\u043d\\u044b\\u0439 \\u0430\\u043d\\u0430\\u043b\\u0438\\u0437 \\u043f\\u0435\\u0440\\u0435\\u043f\\u043b\\u0430\\u043d\\u0438\\u0440\\u043e\\u0432\\u043a\\u0438. \\u042d\\u0442\\u043e \\u0437\\u0430\\u0439\\u043c\\u0451\\u0442 1-2 \\u043c\\u0438\\u043d\\u0443\\u0442\\u044b...';\n}\n\nreturn [{\n  json: {\n    chatId,\n    current_shot_id: requestedShotId,\n    shots_status:    updatedStatus,\n    all_done:        allDone,\n    next_message:    nextMessage,\n    keyboard_rows:   keyboardRows,\n    upload_path:     'photos/' + chatId + '/' + requestedShotId + '.jpg'\n  },\n  binary: items[0].binary\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1228,7 +1254,9 @@
         "text": "={{ $('Code - Process Shot').item.json.next_message }}",
         "additionalFields": {
           "appendAttribution": false,
-          "parse_mode": "HTML"
+          "parse_mode": "HTML",
+          "replyMarkup": "inlineKeyboard",
+          "inlineKeyboard": "={{ $('Code - Process Shot').item.json.keyboard_rows }}"
         }
       },
       "type": "n8n-nodes-base.telegram",
@@ -1771,7 +1799,7 @@
     },
     {
       "parameters": {
-        "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json\n  ? (typeof session.shots_json === 'string' ? JSON.parse(session.shots_json) : session.shots_json)\n  : [];\nvar shotsStatus = session.shots_status\n  ? (typeof session.shots_status === 'string' ? JSON.parse(session.shots_status) : session.shots_status)\n  : {};\nvar roomsJson = session.rooms_json\n  ? (typeof session.rooms_json === 'string' ? JSON.parse(session.rooms_json) : session.rooms_json)\n  : [];\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\nvar receivedShots = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    receivedShots.push({\n      url: SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg',\n      room_id: shot.room_id || '',\n      room_name: shot.room_name || '',\n      position: shot.position || '',\n      direction: shot.direction || ''\n    });\n  }\n}\n\nvar roomsList = roomsJson.length > 0\n  ? 'КОМНАТЫ (room_id → название):\\n' + roomsJson.map(function(r) {\n      return '- room_id: ' + r.id + ' → ' + r.name;\n    }).join('\\n')\n  : '';\n\nvar systemPrompt =\n  'Ты — опытный технический инспектор. ' +\n  'Твоя задача — только наблюдение: сравни фотографии с планом БТИ и зафикcируй структурные отличия. ' +\n  'НЕ классифицируй, НЕ давай рекомендации — только описывай что видишь. ' +\n  'ИГНОРИРУЙ мебель, предметы интерьера и бытовую технику — они не являются структурными изменениями. ' +\n  'Отвечай строго в формате JSON без markdown-обёртки.';\n\nvar userText =\n  (roomsList ? roomsList + '\\n\\n---\\n\\n' : '') +\n  'Изображение 1 — официальный план БТИ квартиры.\\n' +\n  'Следующие изображения — фотографии реального состояния комнат.\\n\\n' +\n  'ШАГ 1: Изучи план БТИ — запомни расположение стен, перегородок, дверных проёмов, санузлов.\\n' +\n  'ШАГ 2: Для каждой комнаты сравни фото с планом.\\n' +\n  'ШАГ 3: Зафикcируй только структурные отличия (снос/перенос стен, проёмы, объединение комнат, перемещение мокрых зон). Мебель, предметы интерьера и бытовая техника — НЕ изменения, их не указывай.\\n\\n' +\n  'ФОРМАТ ОТВЕТА JSON:\\n' +\n  '{\"observations\":[{\"room_id\":\"...\",\"type\":\"...\",\"description\":\"...\",\"affected_room_ids\":[\"room_id1\",\"room_id2\"]}]}\\n\\n' +\n  'Допустимые type: wall_removal, wall_addition, doorway_change, room_merge, room_split, wet_zone_move, other\\n' +\n  'affected_room_ids: все room_id затронутых комнат.\\n' +\n  'Если изменений нет — возвращай {\"observations\":[]}.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < receivedShots.length; j++) {\n  var s = receivedShots[j];\n  var label = 'Фото ' + (j+1) + ': ' + s.room_name + ' (room_id: ' + s.room_id + '), позиция: ' + s.position + ', направление: ' + s.direction;\n  contentArray.push({ type: 'text', text: label });\n  contentArray.push({ type: 'image_url', image_url: { url: s.url, detail: 'auto' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: receivedShots.length } }];"
+        "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json\n  ? (typeof session.shots_json === 'string' ? JSON.parse(session.shots_json) : session.shots_json)\n  : [];\nvar shotsStatus = session.shots_status\n  ? (typeof session.shots_status === 'string' ? JSON.parse(session.shots_status) : session.shots_status)\n  : {};\nvar roomsJson = session.rooms_json\n  ? (typeof session.rooms_json === 'string' ? JSON.parse(session.rooms_json) : session.rooms_json)\n  : [];\nvar notPhoto;\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\nvar receivedShots = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    receivedShots.push({\n      url: SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg',\n      room_id: shot.room_id || '',\n      room_name: shot.room_name || '',\n      position: shot.position || '',\n      direction: shot.direction || ''\n    });\n  }\n}\n\nvar roomsList = roomsJson.length > 0\n  ? 'КОМНАТЫ (room_id → название):\\n' + roomsJson.map(function(r) {\n      return '- room_id: ' + r.id + ' → ' + r.name;\n    }).join('\\n')\n  : '';\n\nvar systemPrompt =\n  'Ты — опытный технический инспектор. ' +\n  'Твоя задача — только наблюдение: сравни фотографии с планом БТИ и зафикcируй структурные отличия. ' +\n  'НЕ классифицируй, НЕ давай рекомендации — только описывай что видишь. ' +\n  'ИГНОРИРУЙ мебель, предметы интерьера и бытовую технику — они не являются структурными изменениями. ' +\n  'Отвечай строго в формате JSON без markdown-обёртки.' + 'Если пользователь прислал не фотографию комнаты — возвращай {\"notPhoto\":true}.';\n\nvar userText =\n  (roomsList ? roomsList + '\\n\\n---\\n\\n' : '') +\n  'Изображение 1 — официальный план БТИ квартиры.\\n' +\n  'Следующие изображения — фотографии реального состояния комнат.\\n\\n' +\n  'ШАГ 1: Изучи план БТИ — запомни расположение стен, перегородок, дверных проёмов, санузлов.\\n' +\n  'ШАГ 2: Для каждой комнаты сравни фото с планом.\\n' +\n  'ШАГ 3: Зафикcируй только структурные отличия (снос/перенос стен, проёмы, объединение комнат, перемещение мокрых зон). Мебель, предметы интерьера и бытовая техника — НЕ изменения, их не указывай.\\n\\n' +\n  'ФОРМАТ ОТВЕТА JSON:\\n' +\n  '{\"observations\":[{\"room_id\":\"...\",\"type\":\"...\",\"description\":\"...\",\"affected_room_ids\":[\"room_id1\",\"room_id2\"]}]}\\n\\n' +\n  'Допустимые type: wall_removal, wall_addition, doorway_change, room_merge, room_split, wet_zone_move, other\\n' +\n  'affected_room_ids: все room_id затронутых комнат.\\n' +\n  'Если изменений нет — возвращай {\"observations\":[]}.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < receivedShots.length; j++) {\n  var s = receivedShots[j];\n  var label = 'Фото ' + (j+1) + ': ' + s.room_name + ' (room_id: ' + s.room_id + '), позиция: ' + s.position + ', направление: ' + s.direction;\n  contentArray.push({ type: 'text', text: label });\n  contentArray.push({ type: 'image_url', image_url: { url: s.url, detail: 'auto' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: receivedShots.length, notPhoto:  } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1832,7 +1860,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5072,
+        5280,
         512
       ],
       "id": "build-classify-payload-node-001",
@@ -1871,7 +1899,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        5312,
+        5520,
         512
       ],
       "id": "http-gpt4o-classify-node-001",
@@ -1888,7 +1916,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5552,
+        5760,
         512
       ],
       "id": "parse-classify-node-001",
@@ -1928,7 +1956,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        6048,
+        6256,
         528
       ],
       "id": "save-analysis-result-node-001",
@@ -1954,7 +1982,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6256,
+        6464,
         528
       ],
       "id": "step6-code-build-report",
@@ -1972,7 +2000,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        7568,
+        7776,
         544
       ],
       "id": "step6-telegram-send-report",
@@ -2012,7 +2040,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        7808,
+        8016,
         544
       ],
       "id": "step6-if-low-confidence",
@@ -2030,7 +2058,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        8048,
+        8256,
         336
       ],
       "id": "step6-telegram-notify-manager",
@@ -2077,7 +2105,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        8288,
+        8496,
         336
       ],
       "id": "step6-reset-session-manager",
@@ -2094,7 +2122,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        8528,
+        8736,
         336
       ],
       "id": "step6-analysis-done-manager",
@@ -2141,7 +2169,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        8048,
+        8256,
         768
       ],
       "id": "step6-reset-session-normal",
@@ -2158,7 +2186,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        8288,
+        8496,
         768
       ],
       "id": "step6-analysis-done-normal",
@@ -2341,7 +2369,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6752,
+        6960,
         400
       ],
       "id": "http-dl-plan-changes-001"
@@ -2381,7 +2409,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6992,
+        7200,
         400
       ],
       "id": "http-annotate-changes-001"
@@ -2399,7 +2427,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        7216,
+        7424,
         400
       ],
       "id": "telegram-send-annotated-changes-001",
@@ -2614,7 +2642,7 @@
             "caseSensitive": true,
             "leftValue": "",
             "typeValidation": "strict",
-            "version": 3
+            "version": 1
           },
           "conditions": [
             {
@@ -2636,7 +2664,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        5792,
+        6000,
         512
       ],
       "id": "if-gpt4o-error-001"
@@ -2653,7 +2681,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        6048,
+        6256,
         320
       ],
       "id": "telegram-gpt4o-error-001",
@@ -2700,7 +2728,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6256,
+        6464,
         320
       ],
       "id": "http-reset-gpt4o-err-001"
@@ -2905,7 +2933,7 @@
             "caseSensitive": true,
             "leftValue": "",
             "typeValidation": "strict",
-            "version": 3
+            "version": 2
           },
           "conditions": [
             {
@@ -2926,11 +2954,164 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6480,
+        6688,
         528
       ],
       "id": "if-has-changes-001",
       "name": "IF - Has Changes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "768b36a7-d526-4680-b3b5-6c41577b1dfd",
+              "leftValue": "={{ $json.notPhoto }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5040,
+        512
+      ],
+      "id": "2ad82696-69cf-4e0c-bf9f-ab6f580a7c77",
+      "name": "If5"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ 'Пришлите, пожалуйста, реальную фотографию комнаты' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "name": "Telegram - GPT4o Error1",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        5296,
+        336
+      ],
+      "id": "5a982f7c-81da-469d-941e-213a686afb1b",
+      "webhookId": "2291c7fd-cbcc-427f-8dc7-d92c4b0a8870",
+      "credentials": {
+        "telegramApi": {
+          "id": "pf7Lmwh5V28tUCpr",
+          "name": "BTI_BOT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const session = $('Get a row3').first().json;\nconst callbackQuery = $('Telegram Trigger').first().json.callback_query;\nconst chatId = callbackQuery.message.chat.id;\nconst callbackQueryId = callbackQuery.id;\nconst selectedShotId = callbackQuery.data;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst selectedShot = shots.find(function(s) { return s.shot_id === selectedShotId; });\nif (!selectedShot) {\n  throw new Error('Комната не найдена: ' + selectedShotId);\n}\n\n// Check if already received - ignore re-clicks\nif (shotsStatus[selectedShotId] === 'received') {\n  throw new Error('ALREADY_RECEIVED');\n}\n\nconst updatedStatus = Object.assign({}, shotsStatus);\n// Clear any previous 'requested' status\nObject.keys(updatedStatus).forEach(function(id) {\n  if (updatedStatus[id] === 'requested') updatedStatus[id] = 'pending';\n});\nupdatedStatus[selectedShotId] = 'requested';\n\nfunction h(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\n\nconst instruction = '\\uD83D\\uDCF7 <b>\\u0421\\u0444\\u043e\\u0442\\u043e\\u0433\\u0440\\u0430\\u0444\\u0438\\u0440\\u0443\\u0439\\u0442\\u0435: ' + h(selectedShot.room_name) + '</b>\\n\\n'\n  + '\\uD83D\\uDCCD \\u041f\\u043e\\u0437\\u0438\\u0446\\u0438\\u044f: ' + h(selectedShot.position) + '\\n'\n  + '\\u27A1\\uFE0F \\u041d\\u0430\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435: ' + h(selectedShot.direction) + '\\n\\n'\n  + h(selectedShot.instruction) + '\\n\\n'\n  + '<i>\\u041e\\u0442\\u043f\\u0440\\u0430\\u0432\\u044c\\u0442\\u0435 \\u0444\\u043e\\u0442\\u043e \\u043a\\u0430\\u043a \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442/\\u0444\\u0430\\u0439\\u043b \\u2014 \\u044d\\u0442\\u043e \\u0441\\u043e\\u0445\\u0440\\u0430\\u043d\\u044f\\u0435\\u0442 \\u043a\\u0430\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e</i>';\n\nreturn [{ json: {\n  chatId,\n  callbackQueryId,\n  selectedShotId,\n  room_name: selectedShot.room_name,\n  instruction,\n  shots_status: updatedStatus\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        1344
+      ],
+      "id": "code-handle-room-btn-001",
+      "name": "Code - Handle Room Button"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Code - Handle Room Button').item.json.chatId }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "shots_status",
+              "fieldValue": "={{ JSON.stringify($('Code - Handle Room Button').item.json.shots_status) }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1168,
+        1344
+      ],
+      "id": "supabase-update-requested-001",
+      "name": "Supabase - Update Requested Shot",
+      "credentials": {
+        "supabaseApi": {
+          "id": "K3g7kfV1oUf9w1Zs",
+          "name": "Supabase BTI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $('Code - Handle Room Button').item.json.callbackQueryId }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1408,
+        1344
+      ],
+      "id": "telegram-answer-callback-001",
+      "name": "Telegram - Answer Callback",
+      "credentials": {
+        "telegramApi": {
+          "id": "pf7Lmwh5V28tUCpr",
+          "name": "BTI_BOT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Code - Handle Room Button').item.json.chatId }}",
+        "text": "={{ $('Code - Handle Room Button').item.json.instruction }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1648,
+        1344
+      ],
+      "id": "telegram-send-photo-instr-001",
+      "name": "Telegram - Send Photo Instruction",
+      "credentials": {
+        "telegramApi": {
+          "id": "pf7Lmwh5V28tUCpr",
+          "name": "BTI_BOT"
+        }
+      }
     }
   ],
   "connections": {
@@ -3566,7 +3747,7 @@
       "main": [
         [
           {
-            "node": "Code - Build Classification Payload",
+            "node": "If5",
             "type": "main",
             "index": 0
           }
@@ -4022,6 +4203,69 @@
           }
         ]
       ]
+    },
+    "If5": {
+      "main": [
+        [
+          {
+            "node": "Telegram - GPT4o Error1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Build Classification Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch3": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Code - Handle Room Button",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Handle Room Button": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Update Requested Shot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Update Requested Shot": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Answer Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram - Answer Callback": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Send Photo Instruction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -4034,9 +4278,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "acfccb70-273b-4888-8e3b-fd3a3f9e3afa",
-  "activeVersionId": "36cf487d-fd31-431e-84ef-b16881b0ce7a",
-  "versionCounter": 407,
+  "versionId": "c7483074-a65d-4463-bddb-773ccc18e6ac",
+  "activeVersionId": "c7483074-a65d-4463-bddb-773ccc18e6ac",
+  "versionCounter": 416,
   "triggerCount": 1,
   "shared": [
     {
@@ -4090,9 +4334,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-04-01T08:17:19.137Z",
-    "createdAt": "2026-04-01T08:15:17.694Z",
-    "versionId": "36cf487d-fd31-431e-84ef-b16881b0ce7a",
+    "updatedAt": "2026-04-02T11:29:08.323Z",
+    "createdAt": "2026-04-02T11:29:08.323Z",
+    "versionId": "c7483074-a65d-4463-bddb-773ccc18e6ac",
     "workflowId": "305RmoqLIGnuYonX",
     "nodes": [
       {
@@ -4676,6 +4920,30 @@
                 },
                 "renameOutput": true,
                 "outputKey": "awaiting_plan"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "id": "collecting-photos-cond-001",
+                      "leftValue": "={{ $json.step }}",
+                      "rightValue": "collecting_photos",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "collecting_photos"
               }
             ]
           },
@@ -5027,7 +5295,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Geometry Request').first().json.chatId;\n\n// API or HTTP error from shots request\nif (resp.error || !resp.choices || !resp.choices[0]) {\n  const msg = (resp.error && resp.error.message) || 'Ошибка API запроса Точек съёмки';\n  return [{ json: { error: true, chatId: chatId, errorMsg: msg } }];\n}\n\n// Parse shots from second request\nlet shots = [];\ntry {\n  const text = resp.choices[0].message.content;\n  shots = JSON.parse(text).shots || [];\n} catch(e) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось разобрать ответ Гемини. Попробуйте загрузить более чёткий план квартиры.' } }];\n}\n\nif (!shots.length) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось составить задание по плану. Убедитесь что изображение содержит план квартиры.' } }];\n}\n\n// Get rooms + bounds from geometry request (passed through shots request)\nlet rooms = [];\nlet apartment_bounds = null;\ntry { rooms = JSON.parse($('Code - Gemini Shots Request').first().json.rooms || '[]'); } catch(e) {}\ntry { apartment_bounds = JSON.parse($('Code - Gemini Shots Request').first().json.apartment_bounds || 'null'); } catch(e) {}\n\nconst shotsStatus = {};\nshots.forEach(function(s) { shotsStatus[s.shot_id] = 'pending'; });\nconst firstShot = shots[0];\nshotsStatus[firstShot.shot_id] = 'requested';\n\nfunction h(s) {\n  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n}\n\nconst roomsList = rooms.map(function(r) { return '\\u2022 ' + h(r.name); }).join('\\n');\nconst roomsText = '<b>\\u041f\\u043b\\u0430\\u043d \\u043f\\u0440\\u043e\\u0430\\u043d\\u0430\\u043b\\u0438\\u0437\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d!</b>\\n\\u041e\\u0431\\u043d\\u0430\\u0440\\u0443\\u0436\\u0435\\u043d\\u043d\\u044b\\u0435 \\u043f\\u043e\\u043c\\u0435\\u0449\\u0435\\u043d\\u0438\\u044f:\\n' + roomsList\n  + '\\n\\u0412\\u0441\\u0435\\u0433\\u043e \\u0442\\u043e\\u0447\\u0435\\u043a \\u0441\\u044a\\u0451\\u043c\\u043a\\u0438: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '\\uD83D\\uDCF7 <b>\\u0424\\u043e\\u0442\\u043e 1 \\u0438\\u0437 ' + total + '</b>\\n'\n  + '\\uD83C\\uDFE0 ' + h(firstShot.room_name) + '\\n'\n  + '\\uD83D\\uDCCD \\u041f\\u043e\\u0437\\u0438\\u0446\\u0438\\u044f: ' + h(firstShot.position) + '\\n'\n  + '\\u27A1\\uFE0F \\u041d\\u0430\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435: ' + h(firstShot.direction) + '\\n'\n  + h(firstShot.instruction) + '\\n'\n  + '<i>\\u041e\\u0442\\u043f\\u0440\\u0430\\u0432\\u044c\\u0442\\u0435 \\u0444\\u043e\\u0442\\u043e \\u043a\\u0430\\u043a \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442/\\u0444\\u0430\\u0439\\u043b \\u2014 \\u044d\\u0442\\u043e \\u0441\\u043e\\u0445\\u0440\\u0430\\u043d\\u044f\\u0435\\u0442 \\u043a\\u0430\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e</i>';\n\nreturn [{ json: {\n  error:             false,\n  chatId:            chatId,\n  rooms_json:        rooms,\n  apartment_bounds:  apartment_bounds,\n  shots_json:        shots,\n  shots_status:      shotsStatus,\n  rooms_text:        roomsText,\n  first_instruction: firstMsg,\n  total_shots:       total\n} }];"
+          "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Geometry Request').first().json.chatId;\n\n// API or HTTP error from shots request\nif (resp.error || !resp.choices || !resp.choices[0]) {\n  const msg = (resp.error && resp.error.message) || 'Ошибка API запроса Точек съёмки';\n  return [{ json: { error: true, chatId: chatId, errorMsg: msg } }];\n}\n\n// Parse shots from second request\nlet shots = [];\ntry {\n  const text = resp.choices[0].message.content;\n  shots = JSON.parse(text).shots || [];\n} catch(e) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось разобрать ответ Гемини. Попробуйте загрузить более чёткий план квартиры.' } }];\n}\n\nif (!shots.length) {\n  return [{ json: { error: true, chatId: chatId,\n    errorMsg: 'Не удалось составить задание по плану. Убедитесь что изображение содержит план квартиры.' } }];\n}\n\n// Get rooms + bounds from geometry request (passed through shots request)\nlet rooms = [];\nlet apartment_bounds = null;\ntry { rooms = JSON.parse($('Code - Gemini Shots Request').first().json.rooms || '[]'); } catch(e) {}\ntry { apartment_bounds = JSON.parse($('Code - Gemini Shots Request').first().json.apartment_bounds || 'null'); } catch(e) {}\n\nconst shotsStatus = {};\nshots.forEach(function(s) { shotsStatus[s.shot_id] = 'pending'; });\n// No auto-request: user selects via inline keyboard buttons\n\n// Build inline keyboard - one button per shot/room\nfunction buildKeyboard(pendingShots) {\n  return {\n    rows: pendingShots.map(function(shot) {\n      return {\n        row: {\n          buttons: [{ text: shot.room_name, additionalFields: { callback_data: shot.shot_id } }]\n        }\n      };\n    })\n  };\n}\nconst keyboardRows = buildKeyboard(shots);\n\nfunction h(s) {\n  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n}\n\nconst roomsList = rooms.map(function(r) { return '\\u2022 ' + h(r.name); }).join('\\n');\nconst roomsText = '<b>\\u041f\\u043b\\u0430\\u043d \\u043f\\u0440\\u043e\\u0430\\u043d\\u0430\\u043b\\u0438\\u0437\\u0438\\u0440\\u043e\\u0432\\u0430\\u043d!</b>\\n\\u041e\\u0431\\u043d\\u0430\\u0440\\u0443\\u0436\\u0435\\u043d\\u043d\\u044b\\u0435 \\u043f\\u043e\\u043c\\u0435\\u0449\\u0435\\u043d\\u0438\\u044f:\\n' + roomsList\n  + '\\n\\u0412\\u0441\\u0435\\u0433\\u043e \\u0442\\u043e\\u0447\\u0435\\u043a \\u0441\\u044a\\u0451\\u043c\\u043a\\u0438: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '\\uD83D\\uDCF7 <b>\\u0424\\u043e\\u0442\\u043e 1 \\u0438\\u0437 ' + total + '</b>\\n'\n  + '\\uD83C\\uDFE0 ' + h(firstShot.room_name) + '\\n'\n  + '\\uD83D\\uDCCD \\u041f\\u043e\\u0437\\u0438\\u0446\\u0438\\u044f: ' + h(firstShot.position) + '\\n'\n  + '\\u27A1\\uFE0F \\u041d\\u0430\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435: ' + h(firstShot.direction) + '\\n'\n  + h(firstShot.instruction) + '\\n'\n  + '<i>\\u041e\\u0442\\u043f\\u0440\\u0430\\u0432\\u044c\\u0442\\u0435 \\u0444\\u043e\\u0442\\u043e \\u043a\\u0430\\u043a \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442/\\u0444\\u0430\\u0439\\u043b \\u2014 \\u044d\\u0442\\u043e \\u0441\\u043e\\u0445\\u0440\\u0430\\u043d\\u044f\\u0435\\u0442 \\u043a\\u0430\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e</i>';\n\nreturn [{ json: {\n  error:             false,\n  chatId:            chatId,\n  rooms_json:        rooms,\n  apartment_bounds:  apartment_bounds,\n  shots_json:        shots,\n  shots_status:      shotsStatus,\n  rooms_text:        roomsText,\n  first_instruction: firstMsg,\n  keyboard_rows:     keyboardRows,\n  total_shots:       total\n} }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -5093,7 +5361,9 @@
           "text": "={{ $('Code - Parse Gemini').item.json.first_instruction }}",
           "additionalFields": {
             "appendAttribution": false,
-            "parse_mode": "HTML"
+            "parse_mode": "HTML",
+            "replyMarkup": "inlineKeyboard",
+            "inlineKeyboard": "={{ $('Code - Parse Gemini').item.json.keyboard_rows }}"
           }
         },
         "type": "n8n-nodes-base.telegram",
@@ -5136,7 +5406,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const session = $('Get a row1').first().json;\nconst chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst requestedShotId = Object.keys(shotsStatus).find(id => shotsStatus[id] === 'requested');\nif (!requestedShotId) {\n  throw new Error('Нет активной точки съёмки. Введите /start для перезапуска.');\n}\n\nconst updatedStatus = { ...shotsStatus };\nupdatedStatus[requestedShotId] = 'received';\n\nconst nextShot = shots.find(s => updatedStatus[s.shot_id] === 'pending');\nconst allDone  = !nextShot;\nlet nextStatus = { ...updatedStatus };\nlet nextMessage = '';\n\n// HTML-escape dynamic content from LLM\nfunction h(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\n\nif (!allDone) {\n  nextStatus[nextShot.shot_id] = 'requested';\n  const total     = shots.length;\n  const shotIndex = shots.findIndex(s => s.shot_id === nextShot.shot_id) + 1;\n  nextMessage = '📷 <b>Фото ' + shotIndex + ' из ' + total + '</b>\\n\\n'\n    + '🏠 ' + h(nextShot.room_name) + '\\n'\n    + '📍 Позиция: ' + h(nextShot.position) + '\\n'\n    + '➡️ Направление: ' + h(nextShot.direction) + '\\n\\n'\n    + h(nextShot.instruction) + '\\n\\n'\n    + '<i>Отправьте фото как документ/файл — это сохраняет качество</i>';\n} else {\n  nextMessage = '✅ Все фотографии получены!\\n\\nНачинаю финальный анализ перепланировки. Это займёт 1-2 минуты...';\n}\n\nreturn [{\n  json: {\n    chatId,\n    current_shot_id: requestedShotId,\n    shots_status:    nextStatus,\n    all_done:        allDone,\n    next_message:    nextMessage,\n    upload_path:     'photos/' + chatId + '/' + requestedShotId + '.jpg'\n  },\n  binary: items[0].binary\n}];"
+          "jsCode": "const session = $('Get a row1').first().json;\nconst chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst requestedShotId = Object.keys(shotsStatus).find(function(id) { return shotsStatus[id] === 'requested'; });\nif (!requestedShotId) {\n  throw new Error('\\u041d\\u0435\\u0442 \\u0430\\u043a\\u0442\\u0438\\u0432\\u043d\\u043e\\u0439 \\u0442\\u043e\\u0447\\u043a\\u0438 \\u0441\\u044a\\u0451\\u043c\\u043a\\u0438. \\u0412\\u0432\\u0435\\u0434\\u0438\\u0442\\u0435 /start \\u0434\\u043b\\u044f \\u043f\\u0435\\u0440\\u0435\\u0437\\u0430\\u043f\\u0443\\u0441\\u043a\\u0430.');\n}\n\nconst updatedStatus = Object.assign({}, shotsStatus);\nupdatedStatus[requestedShotId] = 'received';\n\nconst pendingShots = shots.filter(function(s) { return updatedStatus[s.shot_id] === 'pending'; });\nconst allDone = pendingShots.length === 0;\n\nconst receivedCount = shots.filter(function(s) { return updatedStatus[s.shot_id] === 'received'; }).length;\nconst total = shots.length;\n\nlet keyboardRows = null;\nlet nextMessage = '';\n\nif (!allDone) {\n  keyboardRows = {\n    rows: pendingShots.map(function(shot) {\n      return {\n        row: {\n          buttons: [{ text: shot.room_name, additionalFields: { callback_data: shot.shot_id } }]\n        }\n      };\n    })\n  };\n  nextMessage = '\\u2705 \\u0424\\u043e\\u0442\\u043e \\u043f\\u043e\\u043b\\u0443\\u0447\\u0435\\u043d\\u043e! (' + receivedCount + '/' + total + ')\\n\\n\\u0412\\u044b\\u0431\\u0435\\u0440\\u0438\\u0442\\u0435 \\u0441\\u043b\\u0435\\u0434\\u0443\\u044e\\u0449\\u0443\\u044e \\u043a\\u043e\\u043c\\u043d\\u0430\\u0442\\u0443:';\n} else {\n  nextMessage = '\\u2705 \\u0412\\u0441\\u0435 \\u0444\\u043e\\u0442\\u043e\\u0433\\u0440\\u0430\\u0444\\u0438\\u0438 \\u043f\\u043e\\u043b\\u0443\\u0447\\u0435\\u043d\\u044b!\\n\\n\\u041d\\u0430\\u0447\\u0438\\u043d\\u0430\\u044e \\u0444\\u0438\\u043d\\u0430\\u043b\\u044c\\u043d\\u044b\\u0439 \\u0430\\u043d\\u0430\\u043b\\u0438\\u0437 \\u043f\\u0435\\u0440\\u0435\\u043f\\u043b\\u0430\\u043d\\u0438\\u0440\\u043e\\u0432\\u043a\\u0438. \\u042d\\u0442\\u043e \\u0437\\u0430\\u0439\\u043c\\u0451\\u0442 1-2 \\u043c\\u0438\\u043d\\u0443\\u0442\\u044b...';\n}\n\nreturn [{\n  json: {\n    chatId,\n    current_shot_id: requestedShotId,\n    shots_status:    updatedStatus,\n    all_done:        allDone,\n    next_message:    nextMessage,\n    keyboard_rows:   keyboardRows,\n    upload_path:     'photos/' + chatId + '/' + requestedShotId + '.jpg'\n  },\n  binary: items[0].binary\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -5316,7 +5586,9 @@
           "text": "={{ $('Code - Process Shot').item.json.next_message }}",
           "additionalFields": {
             "appendAttribution": false,
-            "parse_mode": "HTML"
+            "parse_mode": "HTML",
+            "replyMarkup": "inlineKeyboard",
+            "inlineKeyboard": "={{ $('Code - Process Shot').item.json.keyboard_rows }}"
           }
         },
         "type": "n8n-nodes-base.telegram",
@@ -5859,7 +6131,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json\n  ? (typeof session.shots_json === 'string' ? JSON.parse(session.shots_json) : session.shots_json)\n  : [];\nvar shotsStatus = session.shots_status\n  ? (typeof session.shots_status === 'string' ? JSON.parse(session.shots_status) : session.shots_status)\n  : {};\nvar roomsJson = session.rooms_json\n  ? (typeof session.rooms_json === 'string' ? JSON.parse(session.rooms_json) : session.rooms_json)\n  : [];\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\nvar receivedShots = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    receivedShots.push({\n      url: SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg',\n      room_id: shot.room_id || '',\n      room_name: shot.room_name || '',\n      position: shot.position || '',\n      direction: shot.direction || ''\n    });\n  }\n}\n\nvar roomsList = roomsJson.length > 0\n  ? 'КОМНАТЫ (room_id → название):\\n' + roomsJson.map(function(r) {\n      return '- room_id: ' + r.id + ' → ' + r.name;\n    }).join('\\n')\n  : '';\n\nvar systemPrompt =\n  'Ты — опытный технический инспектор. ' +\n  'Твоя задача — только наблюдение: сравни фотографии с планом БТИ и зафикcируй структурные отличия. ' +\n  'НЕ классифицируй, НЕ давай рекомендации — только описывай что видишь. ' +\n  'ИГНОРИРУЙ мебель, предметы интерьера и бытовую технику — они не являются структурными изменениями. ' +\n  'Отвечай строго в формате JSON без markdown-обёртки.';\n\nvar userText =\n  (roomsList ? roomsList + '\\n\\n---\\n\\n' : '') +\n  'Изображение 1 — официальный план БТИ квартиры.\\n' +\n  'Следующие изображения — фотографии реального состояния комнат.\\n\\n' +\n  'ШАГ 1: Изучи план БТИ — запомни расположение стен, перегородок, дверных проёмов, санузлов.\\n' +\n  'ШАГ 2: Для каждой комнаты сравни фото с планом.\\n' +\n  'ШАГ 3: Зафикcируй только структурные отличия (снос/перенос стен, проёмы, объединение комнат, перемещение мокрых зон). Мебель, предметы интерьера и бытовая техника — НЕ изменения, их не указывай.\\n\\n' +\n  'ФОРМАТ ОТВЕТА JSON:\\n' +\n  '{\"observations\":[{\"room_id\":\"...\",\"type\":\"...\",\"description\":\"...\",\"affected_room_ids\":[\"room_id1\",\"room_id2\"]}]}\\n\\n' +\n  'Допустимые type: wall_removal, wall_addition, doorway_change, room_merge, room_split, wet_zone_move, other\\n' +\n  'affected_room_ids: все room_id затронутых комнат.\\n' +\n  'Если изменений нет — возвращай {\"observations\":[]}.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < receivedShots.length; j++) {\n  var s = receivedShots[j];\n  var label = 'Фото ' + (j+1) + ': ' + s.room_name + ' (room_id: ' + s.room_id + '), позиция: ' + s.position + ', направление: ' + s.direction;\n  contentArray.push({ type: 'text', text: label });\n  contentArray.push({ type: 'image_url', image_url: { url: s.url, detail: 'auto' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: receivedShots.length } }];"
+          "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json\n  ? (typeof session.shots_json === 'string' ? JSON.parse(session.shots_json) : session.shots_json)\n  : [];\nvar shotsStatus = session.shots_status\n  ? (typeof session.shots_status === 'string' ? JSON.parse(session.shots_status) : session.shots_status)\n  : {};\nvar roomsJson = session.rooms_json\n  ? (typeof session.rooms_json === 'string' ? JSON.parse(session.rooms_json) : session.rooms_json)\n  : [];\nvar notPhoto;\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\nvar receivedShots = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    receivedShots.push({\n      url: SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg',\n      room_id: shot.room_id || '',\n      room_name: shot.room_name || '',\n      position: shot.position || '',\n      direction: shot.direction || ''\n    });\n  }\n}\n\nvar roomsList = roomsJson.length > 0\n  ? 'КОМНАТЫ (room_id → название):\\n' + roomsJson.map(function(r) {\n      return '- room_id: ' + r.id + ' → ' + r.name;\n    }).join('\\n')\n  : '';\n\nvar systemPrompt =\n  'Ты — опытный технический инспектор. ' +\n  'Твоя задача — только наблюдение: сравни фотографии с планом БТИ и зафикcируй структурные отличия. ' +\n  'НЕ классифицируй, НЕ давай рекомендации — только описывай что видишь. ' +\n  'ИГНОРИРУЙ мебель, предметы интерьера и бытовую технику — они не являются структурными изменениями. ' +\n  'Отвечай строго в формате JSON без markdown-обёртки.' + 'Если пользователь прислал не фотографию комнаты — возвращай {\"notPhoto\":true}.';\n\nvar userText =\n  (roomsList ? roomsList + '\\n\\n---\\n\\n' : '') +\n  'Изображение 1 — официальный план БТИ квартиры.\\n' +\n  'Следующие изображения — фотографии реального состояния комнат.\\n\\n' +\n  'ШАГ 1: Изучи план БТИ — запомни расположение стен, перегородок, дверных проёмов, санузлов.\\n' +\n  'ШАГ 2: Для каждой комнаты сравни фото с планом.\\n' +\n  'ШАГ 3: Зафикcируй только структурные отличия (снос/перенос стен, проёмы, объединение комнат, перемещение мокрых зон). Мебель, предметы интерьера и бытовая техника — НЕ изменения, их не указывай.\\n\\n' +\n  'ФОРМАТ ОТВЕТА JSON:\\n' +\n  '{\"observations\":[{\"room_id\":\"...\",\"type\":\"...\",\"description\":\"...\",\"affected_room_ids\":[\"room_id1\",\"room_id2\"]}]}\\n\\n' +\n  'Допустимые type: wall_removal, wall_addition, doorway_change, room_merge, room_split, wet_zone_move, other\\n' +\n  'affected_room_ids: все room_id затронутых комнат.\\n' +\n  'Если изменений нет — возвращай {\"observations\":[]}.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < receivedShots.length; j++) {\n  var s = receivedShots[j];\n  var label = 'Фото ' + (j+1) + ': ' + s.room_name + ' (room_id: ' + s.room_id + '), позиция: ' + s.position + ', направление: ' + s.direction;\n  contentArray.push({ type: 'text', text: label });\n  contentArray.push({ type: 'image_url', image_url: { url: s.url, detail: 'auto' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: receivedShots.length, notPhoto:  } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -5910,7 +6182,7 @@
         "name": "HTTP Request - GPT4o Vision",
         "retryOnFail": true,
         "maxTries": 5,
-        "waitBetweenTries": 65000,
+        "waitBetweenTries": 5000,
         "continueOnFail": true
       },
       {
@@ -5920,7 +6192,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          5072,
+          5280,
           512
         ],
         "id": "build-classify-payload-node-001",
@@ -5959,7 +6231,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
         "position": [
-          5312,
+          5520,
           512
         ],
         "id": "http-gpt4o-classify-node-001",
@@ -5976,7 +6248,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          5552,
+          5760,
           512
         ],
         "id": "parse-classify-node-001",
@@ -6016,7 +6288,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.3,
         "position": [
-          6048,
+          6256,
           528
         ],
         "id": "save-analysis-result-node-001",
@@ -6042,7 +6314,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          6256,
+          6464,
           528
         ],
         "id": "step6-code-build-report",
@@ -6060,7 +6332,7 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          7568,
+          7776,
           544
         ],
         "id": "step6-telegram-send-report",
@@ -6100,7 +6372,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          7808,
+          8016,
           544
         ],
         "id": "step6-if-low-confidence",
@@ -6118,7 +6390,7 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          8048,
+          8256,
           336
         ],
         "id": "step6-telegram-notify-manager",
@@ -6165,7 +6437,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          8288,
+          8496,
           336
         ],
         "id": "step6-reset-session-manager",
@@ -6182,7 +6454,7 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          8528,
+          8736,
           336
         ],
         "id": "step6-analysis-done-manager",
@@ -6229,7 +6501,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          8048,
+          8256,
           768
         ],
         "id": "step6-reset-session-normal",
@@ -6246,7 +6518,7 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          8288,
+          8496,
           768
         ],
         "id": "step6-analysis-done-normal",
@@ -6429,7 +6701,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          6752,
+          6960,
           400
         ],
         "id": "http-dl-plan-changes-001"
@@ -6469,7 +6741,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          6992,
+          7200,
           400
         ],
         "id": "http-annotate-changes-001"
@@ -6487,7 +6759,7 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          7216,
+          7424,
           400
         ],
         "id": "telegram-send-annotated-changes-001",
@@ -6702,7 +6974,7 @@
               "caseSensitive": true,
               "leftValue": "",
               "typeValidation": "strict",
-              "version": 3
+              "version": 1
             },
             "conditions": [
               {
@@ -6724,7 +6996,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2,
         "position": [
-          5792,
+          6000,
           512
         ],
         "id": "if-gpt4o-error-001"
@@ -6741,7 +7013,7 @@
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
         "position": [
-          6048,
+          6256,
           320
         ],
         "id": "telegram-gpt4o-error-001",
@@ -6788,7 +7060,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          6256,
+          6464,
           320
         ],
         "id": "http-reset-gpt4o-err-001"
@@ -6983,7 +7255,8 @@
           512
         ],
         "id": "01179fc6-4e84-4cfb-bea2-12465e52a07d",
-        "name": "If4"
+        "name": "If4",
+        "disabled": true
       },
       {
         "parameters": {
@@ -6992,7 +7265,7 @@
               "caseSensitive": true,
               "leftValue": "",
               "typeValidation": "strict",
-              "version": 3
+              "version": 2
             },
             "conditions": [
               {
@@ -7013,11 +7286,164 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          6480,
+          6688,
           528
         ],
         "id": "if-has-changes-001",
         "name": "IF - Has Changes"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "768b36a7-d526-4680-b3b5-6c41577b1dfd",
+                "leftValue": "={{ $json.notPhoto }}",
+                "rightValue": "true",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          5040,
+          512
+        ],
+        "id": "2ad82696-69cf-4e0c-bf9f-ab6f580a7c77",
+        "name": "If5"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $json.chatId }}",
+          "text": "={{ 'Пришлите, пожалуйста, реальную фотографию комнаты' }}",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "name": "Telegram - GPT4o Error1",
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          5296,
+          336
+        ],
+        "id": "5a982f7c-81da-469d-941e-213a686afb1b",
+        "webhookId": "2291c7fd-cbcc-427f-8dc7-d92c4b0a8870",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const session = $('Get a row3').first().json;\nconst callbackQuery = $('Telegram Trigger').first().json.callback_query;\nconst chatId = callbackQuery.message.chat.id;\nconst callbackQueryId = callbackQuery.id;\nconst selectedShotId = callbackQuery.data;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst selectedShot = shots.find(function(s) { return s.shot_id === selectedShotId; });\nif (!selectedShot) {\n  throw new Error('Комната не найдена: ' + selectedShotId);\n}\n\n// Check if already received - ignore re-clicks\nif (shotsStatus[selectedShotId] === 'received') {\n  throw new Error('ALREADY_RECEIVED');\n}\n\nconst updatedStatus = Object.assign({}, shotsStatus);\n// Clear any previous 'requested' status\nObject.keys(updatedStatus).forEach(function(id) {\n  if (updatedStatus[id] === 'requested') updatedStatus[id] = 'pending';\n});\nupdatedStatus[selectedShotId] = 'requested';\n\nfunction h(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\n\nconst instruction = '\\uD83D\\uDCF7 <b>\\u0421\\u0444\\u043e\\u0442\\u043e\\u0433\\u0440\\u0430\\u0444\\u0438\\u0440\\u0443\\u0439\\u0442\\u0435: ' + h(selectedShot.room_name) + '</b>\\n\\n'\n  + '\\uD83D\\uDCCD \\u041f\\u043e\\u0437\\u0438\\u0446\\u0438\\u044f: ' + h(selectedShot.position) + '\\n'\n  + '\\u27A1\\uFE0F \\u041d\\u0430\\u043f\\u0440\\u0430\\u0432\\u043b\\u0435\\u043d\\u0438\\u0435: ' + h(selectedShot.direction) + '\\n\\n'\n  + h(selectedShot.instruction) + '\\n\\n'\n  + '<i>\\u041e\\u0442\\u043f\\u0440\\u0430\\u0432\\u044c\\u0442\\u0435 \\u0444\\u043e\\u0442\\u043e \\u043a\\u0430\\u043a \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442/\\u0444\\u0430\\u0439\\u043b \\u2014 \\u044d\\u0442\\u043e \\u0441\\u043e\\u0445\\u0440\\u0430\\u043d\\u044f\\u0435\\u0442 \\u043a\\u0430\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e</i>';\n\nreturn [{ json: {\n  chatId,\n  callbackQueryId,\n  selectedShotId,\n  room_name: selectedShot.room_name,\n  instruction,\n  shots_status: updatedStatus\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          928,
+          1344
+        ],
+        "id": "code-handle-room-btn-001",
+        "name": "Code - Handle Room Button"
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Code - Handle Room Button').item.json.chatId }}"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "shots_status",
+                "fieldValue": "={{ JSON.stringify($('Code - Handle Room Button').item.json.shots_status) }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          1168,
+          1344
+        ],
+        "id": "supabase-update-requested-001",
+        "name": "Supabase - Update Requested Shot",
+        "credentials": {
+          "supabaseApi": {
+            "id": "K3g7kfV1oUf9w1Zs",
+            "name": "Supabase BTI"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "callback",
+          "operation": "answerQuery",
+          "queryId": "={{ $('Code - Handle Room Button').item.json.callbackQueryId }}"
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1408,
+          1344
+        ],
+        "id": "telegram-answer-callback-001",
+        "name": "Telegram - Answer Callback",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Code - Handle Room Button').item.json.chatId }}",
+          "text": "={{ $('Code - Handle Room Button').item.json.instruction }}",
+          "additionalFields": {
+            "appendAttribution": false,
+            "parse_mode": "HTML"
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1648,
+          1344
+        ],
+        "id": "telegram-send-photo-instr-001",
+        "name": "Telegram - Send Photo Instruction",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
       }
     ],
     "connections": {
@@ -7653,7 +8079,7 @@
         "main": [
           [
             {
-              "node": "Code - Build Classification Payload",
+              "node": "If5",
               "type": "main",
               "index": 0
             }
@@ -8109,18 +8535,81 @@
             }
           ]
         ]
+      },
+      "If5": {
+        "main": [
+          [
+            {
+              "node": "Telegram - GPT4o Error1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Code - Build Classification Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Switch3": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Code - Handle Room Button",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Handle Room Button": {
+        "main": [
+          [
+            {
+              "node": "Supabase - Update Requested Shot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase - Update Requested Shot": {
+        "main": [
+          [
+            {
+              "node": "Telegram - Answer Callback",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Telegram - Answer Callback": {
+        "main": [
+          [
+            {
+              "node": "Telegram - Send Photo Instruction",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Admin Admin",
-    "name": "Version 36cf487d",
-    "description": "",
+    "name": null,
+    "description": null,
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-04-01T08:17:19.082Z",
-        "id": 429,
+        "createdAt": "2026-04-02T11:29:09.791Z",
+        "id": 444,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "36cf487d-fd31-431e-84ef-b16881b0ce7a",
+        "versionId": "c7483074-a65d-4463-bddb-773ccc18e6ac",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       }
