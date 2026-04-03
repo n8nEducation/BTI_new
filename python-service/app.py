@@ -1449,5 +1449,62 @@ def handle_analyze_bti():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
+def get_column_letter(n):
+    """Генерирует имена колонок как в Excel: A, B, C... Z, AA, AB..."""
+    string = ""
+    while n > 0:
+        n, remainder = divmod(n - 1, 26)
+        string = chr(65 + remainder) + string
+    return string
+
+@app.route('/apply-grid', methods=['POST'])
+def apply_grid():
+    # 1. Проверяем, есть ли файл в запросе
+    if 'file' not in request.files:
+        return {"error": "No file part"}, 400
+
+    file = request.files['file']
+    # Получаем шаг сетки из параметров запроса (по умолчанию 100 пикселей)
+    step = int(request.args.get('step', 100))
+
+    # 2. Открываем изображение
+    try:
+        img = Image.open(file.stream).convert("RGB")
+    except Exception as e:
+        return {"error": f"Invalid image: {str(e)}"}, 400
+
+    draw = ImageDraw.Draw(img)
+    width, height = img.size
+
+    # Попытка загрузить шрифт (в Linux/Docker может потребоваться путь к .ttf)
+    try:
+        font = ImageFont.load_default()
+    except Exception:
+        font = None
+
+    # Настройки стиля
+    grid_color = (255, 0, 0, 150) # Красный с прозрачностью
+    text_color = (200, 0, 0)      # Темно-красный для текста
+
+    # 3. Рисуем вертикальные линии и буквы (A, B, C...)
+    for i, x in enumerate(range(0, width, step)):
+        draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
+        label = get_column_letter(i + 1)
+        draw.text((x + 5, 5), label, fill=text_color, font=font)
+
+    # 4. Рисуем горизонтальные линии и цифры (1, 2, 3...)
+    for j, y in enumerate(range(0, height, step)):
+        draw.line([(0, y), (width, y)], fill=grid_color, width=1)
+        label = str(j + 1)
+        draw.text((5, y + 5), label, fill=text_color, font=font)
+
+    # 5. Сохраняем результат в буфер (BytesIO), чтобы не плодить файлы на диске
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG', quality=85)
+    img_byte_arr.seek(0)
+
+    return send_file(img_byte_arr, mimetype='image/jpeg')
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
