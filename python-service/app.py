@@ -1464,8 +1464,6 @@ def apply_grid():
         return {"error": "No file part"}, 400
 
     file = request.files['file']
-    # Получаем шаг сетки (по умолчанию 50 пикселей для точности)
-    step = int(request.args.get('step', 50))
 
     # 2. Открытие изображения
     try:
@@ -1475,6 +1473,7 @@ def apply_grid():
 
     draw = ImageDraw.Draw(img)
     width, height = img.size
+    step = width // 15
 
     # 3. Настройка шрифта
     # Размер шрифта подстраивается под шаг сетки (примерно 40% от шага)
