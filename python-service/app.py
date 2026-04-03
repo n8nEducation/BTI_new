@@ -1450,6 +1450,7 @@ def handle_analyze_bti():
 
 
 def get_column_letter(n):
+    """Генерирует имена колонок: A, B, C... Z, AA, AB..."""
     string = ""
     while n > 0:
         n, remainder = divmod(n - 1, 26)
@@ -1458,13 +1459,15 @@ def get_column_letter(n):
 
 @app.route('/apply-grid', methods=['POST'])
 def apply_grid():
+    # 1. Проверка наличия файла
     if 'file' not in request.files:
         return {"error": "No file part"}, 400
 
     file = request.files['file']
-    # Уменьшаем шаг по умолчанию до 50 для большей точности
+    # Получаем шаг сетки (по умолчанию 50 пикселей для точности)
     step = int(request.args.get('step', 50))
 
+    # 2. Открытие изображения
     try:
         img = Image.open(file.stream).convert("RGB")
     except Exception as e:
@@ -1473,38 +1476,64 @@ def apply_grid():
     draw = ImageDraw.Draw(img)
     width, height = img.size
 
+    # 3. Настройка шрифта
+    # Размер шрифта подстраивается под шаг сетки (примерно 40% от шага)
+    font_size = max(14, int(step * 0.4))
     try:
-        # Пытаемся загрузить шрифт, если нет - используем базовый
+        # Для Windows: "arial.ttf", для Linux: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        # Если путь не найден, Pillow использует стандартный (мелкий) шрифт
         font = ImageFont.load_default()
     except:
         font = None
 
     # Цвета
-    grid_color = (255, 0, 0, 80)  # Сделали линии еще прозрачнее, чтобы не мешали
-    text_color = (255, 0, 0)      # Яркий красный для текста
-    halo_color = (255, 255, 255)  # Белая обводка
+    grid_color = (255, 0, 0, 80)   # Полупрозрачный красный для линий
+    text_color = (255, 0, 0)       # Яркий красный для текста
+    shadow_color = (0, 0, 0)       # Черный для тени (читаемость на любом фоне)
 
-    # 1. Рисуем вертикальные линии и буквы
+    # 4. Отрисовка ВЕРТИКАЛЬНЫХ линий и БУКВ
     for i, x in enumerate(range(0, width, step)):
+        # Рисуем линию
         draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
+
         label = get_column_letter(i + 1)
 
-        # Смещаем текст: x + 5 (отступ от линии), 2 (отступ от верхнего края)
-        # Добавляем stroke_width для "ореола", чтобы текст не сливался с планом
-        draw.text((x + 5, 2), label, fill=text_color, font=font,
-                  stroke_width=2, stroke_fill=halo_color)
+        # Сдвигаем БУКВЫ в правый верхний угол ячейки
+        # x + step (правый край) - отступ.
+        # Если это последняя неполная ячейка, проверяем границы
+        if x + step <= width:
+            label_x = x + step - (font_size + 5)
+        else:
+            label_x = x + 5 # Если ячейка обрезана краем фото
 
-    # 2. Рисуем горизонтальные линии и цифры
+        label_y = 5 # Небольшой отступ от самого верха
+
+        # Рисуем "тень" (черный текст со сдвигом в 1 пиксель)
+        draw.text((label_x + 1, label_y + 1), label, fill=shadow_color, font=font)
+        # Рисуем основной текст
+        draw.text((label_x, label_y), label, fill=text_color, font=font)
+
+    # 5. Отрисовка ГОРИЗОНТАЛЬНЫХ линий и ЦИФР
     for j, y in enumerate(range(0, height, step)):
+        # Рисуем линию
         draw.line([(0, y), (width, y)], fill=grid_color, width=1)
+
         label = str(j + 1)
 
-        # Смещаем текст: 2 (отступ от левого края), y + 2 (отступ от линии)
-        draw.text((2, y + 2), label, fill=text_color, font=font,
-                  stroke_width=2, stroke_fill=halo_color)
+        # Сдвигаем ЦИФРЫ в левый верхний угол, но чуть НИЖЕ линии (y + 10)
+        # Таким образом, буква "А" (сверху-справа) и цифра "1" (снизу-слева) не пересекутся
+        label_x = 10
+        label_y = y + 10
 
+        # Рисуем "тень"
+        draw.text((label_x + 1, label_y + 1), label, fill=shadow_color, font=font)
+        # Рисуем основной текст
+        draw.text((label_x, label_y), label, fill=text_color, font=font)
+
+    # 6. Подготовка ответа
     img_byte_arr = io.BytesIO()
-    img.save(img_byte_arr, format='PNG') # PNG сохранит четкость линий лучше
+    # Сохраняем в PNG для сохранения идеальной четкости линий
+    img.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
 
     return send_file(img_byte_arr, mimetype='image/png')
