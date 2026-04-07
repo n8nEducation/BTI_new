@@ -1508,12 +1508,12 @@ def apply_beacons():
     return send_file(img_byte_arr, mimetype='image/png')
 
 def process_image(file_storage):
-    """Оптимизация изображения для распознавания мелкого текста и литер (типа 1а)."""
+    """Оптимизация изображения для распознавания мелких индексов и цифр."""
     img = Image.open(file_storage)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
 
-    # Увеличиваем разрешение до 2500px, чтобы ИИ видел индексы и мелкие цифры в экспликациях
+    # Высокое разрешение необходимо для чтения индексов типа '1а'
     img.thumbnail((2500, 2500), Image.Resampling.LANCZOS)
 
     buffer = io.BytesIO()
@@ -1523,9 +1523,10 @@ def process_image(file_storage):
 
 @app.route('/parse-plan', methods=['POST'])
 def parse_plan():
+    # Получаем ключ из URL (?api_key=sk-...)
     api_key = request.args.get('api_key')
     if not api_key:
-        return jsonify({"status": "error", "message": "Missing api_key in query parameters"}), 401
+        return jsonify({"status": "error", "message": "Missing api_key parameter"}), 401
 
     if 'file' not in request.files:
         return jsonify({"status": "error", "message": "No file uploaded"}), 400
@@ -1536,21 +1537,21 @@ def parse_plan():
         client = OpenAI(api_key=api_key)
         base64_image = process_image(file)
 
-        # ШАГ 1: ГЛУБОКИЙ АНАЛИЗ
+        # --- ШАГ 1: ПЕРВИЧНЫЙ АНАЛИЗ ---
         system_prompt = (
-            "Ты — профессиональный кадастровый инженер. Твоя задача — извлечь точный список помещений из плана БТИ. "
-            "ПРИОРИТЕТ: Если на листе есть экспликация (таблица), данные берем СТРОГО из нее. "
-            "ЗАПРЕТ: Не принимай линейные размеры стен (цифры вдоль линий стен, например 2.58, 4.30, 5.66) за номера помещений."
+            "Ты — ведущий инженер БТИ. Твоя задача — составить экспликацию помещений по чертежу. "
+            "ПРАВИЛО ИГНОРИРОВАНИЯ: Не принимай линейные размеры стен (цифры типа 2.58, 4.30, 5.66, 3.70) за номера комнат. "
+            "ПРАВИЛО ТАБЛИЦЫ: Если на плане есть таблица (экспликация), данные в ней — приоритет."
         )
 
         user_prompt_1 = (
-            "Проанализируй изображение и составь список всех помещений. "
-            "ПРАВИЛА ОПРЕДЕЛЕНИЯ:\n"
-            "1. НОМЕР (id): Ищи цифры в кружочках, над горизонтальной чертой или с буквами (1а, 7а).\n"
-            "2. ПЛОЩАДЬ (area): Число под горизонтальной чертой, число рядом с пометкой 'м2' или данные из таблицы.\n"
-            "3. НАЗВАНИЕ (name): Название текстом ('жилая', 'кухня', 'кор.') или 'Помещение', если названия нет.\n"
-            "4. ФОРМАТ: Если площадь не указана числом, ставь null.\n\n"
-            "Верни строго JSON: {'rooms': [{'id': '..', 'name': '..', 'area': '..'}], 'has_total': bool, 'total_value': float}"
+            "Проанализируй план квартиры. Составь список всех помещений.\n\n"
+            "ИНСТРУКЦИЯ:\n"
+            "1. НОМЕР (id): Цифра в круге, над чертой или с буквой (например, 1, 1а, 2).\n"
+            "2. ПЛОЩАДЬ (area): Цифра под чертой, цифра с пометкой 'м2' или данные из таблицы.\n"
+            "3. НАЗВАНИЕ (name): Используй стандартные термины (Жилая, Кухня, Коридор, Санузел, Балкон). "
+            "Если название не указано — пиши 'Помещение'. Используй ТОЛЬКО русский язык.\n\n"
+            "Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': '..'}], 'total_sq': 0.0}"
         )
 
         messages = [
@@ -1561,7 +1562,6 @@ def parse_plan():
             ]}
         ]
 
-        # Первый проход (Vision)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
@@ -1570,24 +1570,18 @@ def parse_plan():
         )
         first_data = json.loads(response.choices[0].message.content)
 
-        # ШАГ 2: САМОПРОВЕРКА И МАТЕМАТИЧЕСКАЯ ВАЛИДАЦИЯ
-        rooms_found = first_data.get('rooms', [])
-        valid_areas = [float(str(r['area']).replace(',', '.')) for r in rooms_found if r.get('area') and str(r['area']).replace('.', '').isdigit()]
-        calc_sum = round(sum(valid_areas), 2) if valid_areas else 0
-
+        # --- ШАГ 2: ПРОВЕРКА И КОРРЕКЦИЯ ---
         check_msg = (
-            f"Я проанализировал данные: найдено {len(rooms_found)} помещений. Сумма их площадей: {calc_sum}. "
-            "Теперь внимательно перепроверь план:\n"
-            "1. Не пропустил ли ты помещения с буквами (например, '1а')?\n"
-            "2. Не принял ли ты размеры стен (длину/ширину) за номера комнат? (Например, проверь номера 3.70, 2.58, 4.30 — это размеры, их быть не должно).\n"
-            "3. Соответствует ли сумма площадей итоговому значению 'Общая площадь' на плане?\n"
-            "Если есть ошибки — исправь их и верни финальный JSON."
+            "Перепроверь результат. Внимательно посмотри на мелкие детали:\n"
+            "1. Найди помещение '1а' (балкон). Часто его площадь указана отдельно маленьким шрифтом.\n"
+            "2. Удали из списка всё, что похоже на длину стен (например, 2.58, 4.30, 2.80, 2.88). Это НЕ номера комнат.\n"
+            "3. Убедись, что названия комнат написаны на русском языке без странных символов.\n"
+            "Верни исправленный JSON."
         )
 
         messages.append({"role": "assistant", "content": json.dumps(first_data)})
         messages.append({"role": "user", "content": check_msg})
 
-        # Второй проход (Self-Correction)
         final_response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
@@ -1596,13 +1590,34 @@ def parse_plan():
         )
         final_data = json.loads(final_response.choices[0].message.content)
 
-        # ШАГ 3: КРАСИВЫЙ ВЫВОД ДЛЯ TELEGRAM
+        # --- ШАГ 3: ФОРМИРОВАНИЕ ТЕКСТА ДЛЯ TELEGRAM ---
         output = ["📋 Результат анализа плана:"]
-        for r in final_data.get('rooms', []):
-            area_str = f" — {r['area']} м²" if r.get('area') else ""
-            output.append(f"№{r.get('id', '?')} — {r.get('name', 'Помещение')}{area_str}")
+        rooms = final_data.get('rooms', [])
 
-        return jsonify({"status": "success", "text": "\n".join(output), "raw": final_data})
+        # Сортировка для порядка: 1, 1а, 2...
+        rooms.sort(key=lambda x: str(x.get('id', '')))
+
+        for r in rooms:
+            rid = r.get('id', '?')
+            name = r.get('name', 'Помещение')
+            area = r.get('area')
+
+            line = f"№{rid} — {name}"
+            if area and str(area).lower() != 'null':
+                line += f" — {area} м²"
+            output.append(line)
+
+        result = {
+            "status": "success",
+            "text": "\n".join(output),
+            "raw": final_data
+        }
+
+        return app.response_class(
+            response=json.dumps(result, ensure_ascii=False),
+            status=200,
+            mimetype='application/json'
+        )
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
