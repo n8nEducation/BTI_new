@@ -1512,7 +1512,7 @@ def process_image(file_storage):
     img = Image.open(file_storage)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-    # Увеличиваем разрешение до 4000px, чтобы ИИ видел мелкие цифры санузлов (3.1, 1.0).
+    # Высокое разрешение для распознавания мелких цифр (санузлы, балконы)
     img.thumbnail((4000, 4000), Image.Resampling.LANCZOS)
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=95)
@@ -1534,19 +1534,21 @@ def parse_plan():
         base64_image = process_image(file)
 
         system_prompt = (
-            "Ты — профессиональный оцифровщик планов БТИ. Твоя задача — собрать экспликацию.\n"
-            "ПРАВИЛА ВИЗУАЛЬНОЙ ПРИВЯЗКИ:\n"
+            "Ты — робот-оцифровщик чертежей БТИ. Твоя задача: извлечь данные 'ID - Название - Площадь'.\n\n"
+            "ПРАВИЛА ИМЕНОВАНИЯ (КРИТИЧЕСКОЕ):\n"
+            "1. Если в зоне помещения НЕТ написанного слова (например, 'кухня', 'жилая', 'коридор'), в поле name пиши строго null.\n"
+            "2. ЗАПРЕЩЕНО придумывать названия самому на основе мебели (унитаз, плита) или контекста.\n\n"
+            "ПРАВИЛА ПАРСИНГА ПЛОЩАДЕЙ:\n"
             "1. СТАНДАРТ ДРОБИ: Число НАД чертой — номер (ID), число ПОД чертой — площадь (AREA).\n"
-            "2. СТАНДАРТ КРУГА: Номер внутри кружка — ID, площадь ищи под кружком или рядом.\n"
-            "3. ТЕКСТОВЫЕ ЗОНЫ: Ищи слова (жилая, кухня, коридор) и числа с индексом 'м2'.\n"
-            "4. НЕМАЯ ПЛОЩАДЬ: Обязательно включи санузлы и кладовки (например, 3.1, 1.0, 0.6). Если номера нет, придумай его.\n\n"
-            "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО:\n"
-            "- Использовать линейные размеры стен (5.72, 3.40, 4.30 и т.д.) как площади.\n"
-            "- Пропускать балконы (всегда ищи их за контуром стен).\n"
-            "- Генерировать ID 1,2,3... по порядку, если их нет на плане. Используй только реальные ID (например, 1а)."
+            "2. СТАНДАРТ КРУГА: Номер внутри кружка — ID, площадь под ним или рядом.\n"
+            "3. МАЛЫЕ ЗОНЫ: Обязательно фиксируй числа типа 3.1, 1.0, 0.6. Если у них нет своего ID, пиши id: null.\n"
+            "4. ИГНОРИРУЙ: Линейные размеры стен вдоль линий (например, 5.72, 3.40, 4.30).\n"
         )
 
-        user_init = "Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': float_or_null}], 'total_on_paper': float_or_null}"
+        user_init = (
+            "Верни JSON: {'rooms': [{'id': 'str_or_null', 'name': 'str_or_null', 'area': float_or_null}], "
+            "'total_on_paper': float_or_null}"
+        )
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -1562,21 +1564,18 @@ def parse_plan():
         )
 
         data = json.loads(response.choices[0].message.content)
-
         rooms = data.get('rooms', [])
-        wall_sizes = {3.40, 4.27, 4.30, 5.72, 3.88, 1.91, 5.39, 3.32, 2.58}
 
         final_rooms = []
         calc_sum = 0
 
-        for r in rooms:
+        for i, r in enumerate(rooms):
             area = r.get('area')
-            rid = str(r.get('id', '?'))
+            rid = str(r.get('id')) if r.get('id') and r.get('id') != 'null' else f"б/н_{i+1}"
 
-            if area in wall_sizes and rid in ['4', '5', '7']:
-                area = None
+            raw_name = r.get('name')
+            name = raw_name if raw_name and raw_name.lower() != 'null' else "Помещение"
 
-            name = r.get('name') or "Помещение"
             if area:
                 calc_sum += float(area)
 
@@ -1594,9 +1593,6 @@ def parse_plan():
             output.append(f"\n📈 Итог по документам: {paper_total} м²")
 
         output.append(f"🧮 Расчетная сумма: {round(calc_sum, 2)} м²")
-
-        if paper_total and abs(float(paper_total) - calc_sum) > 0.1:
-            output.append("⚠️ Внимание: Сумма помещений не совпадает с итогом на плане!")
 
         return app.response_class(
             response=json.dumps({
