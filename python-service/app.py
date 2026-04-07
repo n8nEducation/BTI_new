@@ -1511,7 +1511,7 @@ def process_image(file_storage):
     img = Image.open(file_storage)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-    # Максимальное качество для мелких деталей
+    # Максимальное разрешение для четкости мелких цифр
     img.thumbnail((3000, 3000), Image.Resampling.LANCZOS)
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=95)
@@ -1534,21 +1534,17 @@ def parse_plan():
         base64_image = process_image(file)
 
         system_prompt = (
-            "Ты — эксперт-техник БТИ. Твоя задача — составить таблицу экспликации.\n"
-            "СТРОГИЕ ПРАВИЛА:\n"
-            "1. ИГНОРИРУЙ одиночные числа вдоль стен (3.70, 5.66, 2.92, 2.58) — это длины стен, а не площади!\n"
-            "2. ДРОБЬ: Если видишь дробь (например, 6/7.9), то верхнее число (6) — это НОМЕР, нижнее (7.9) — ПЛОЩАДЬ.\n"
-            "3. ИКОНКИ: Если в помещении нарисован унитаз или ванна — это Санузел. Если плита или мойка — Кухня.\n"
-            "4. Помещения №4 и №5 на этом плане — это санузлы. №2 — большая жилая комната."
+            "Ты — робот-оцифровщик БТИ. Ты не имеешь права интерпретировать символы.\n"
+            "ПРАВИЛА:\n"
+            "1. В поле 'name' пиши слово ТОЛЬКО если оно написано буквами на плане рядом с номером.\n"
+            "2. Если буквенного названия нет (даже если нарисован унитаз или плита) — ПИШИ СТРОГО null в поле name.\n"
+            "3. Номер помещения — это цифра над чертой. Площадь — цифра под чертой.\n"
+            "4. Игнорируй длины стен (2.58, 4.30 и т.д.)."
         )
 
         user_prompt = (
-            "Найди ВСЕ пронумерованные помещения (1, 1а, 2, 3, 4, 5, 6, 7).\n"
-            "Для каждого укажи:\n"
-            "- id: номер помещения.\n"
-            "- name: назначение (Жилая, Санузел, Кухня, Коридор, Балкон).\n"
-            "- area: только число (площадь).\n\n"
-            "Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': float_or_null}]}"
+            "Найди все помещения на плане (1, 1а, 2, 3 и т.д.).\n"
+            "Верни JSON: {'rooms': [{'id': 'номер', 'name': 'слово_с_плана_или_null', 'area': 'число_площади'}]}"
         )
 
         messages = [
@@ -1569,10 +1565,28 @@ def parse_plan():
         data = json.loads(response.choices[0].message.content)
 
         output = ["📋 Результат анализа плана:"]
-        for r in data.get('rooms', []):
+        rooms = data.get('rooms', [])
+
+        # Сортировка (1, 1а, 2...)
+        rooms.sort(key=lambda x: str(x.get('id', '')))
+
+        for r in rooms:
+            rid = str(r.get('id', '?'))
+            raw_name = r.get('name')
             area = r.get('area')
-            area_str = f" — {area} м²" if area and str(area).lower() != 'none' else ""
-            output.append(f"№{r.get('id')} — {r.get('name')}{area_str}")
+
+            if not raw_name or raw_name.lower() == 'null' or raw_name == rid:
+                if area:
+                    display_name = f"Помещение {area}"
+                else:
+                    display_name = "Помещение"
+            else:
+                display_name = raw_name
+
+            line = f"№{rid} — {display_name}"
+            if area:
+                line += " м²"
+            output.append(line)
 
         return app.response_class(
             response=json.dumps({
