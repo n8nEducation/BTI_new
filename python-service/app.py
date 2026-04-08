@@ -1507,106 +1507,107 @@ def apply_beacons():
 
     return send_file(img_byte_arr, mimetype='image/png')
 
-def process_image(file_storage):
-    """Оптимизация изображения для распознавания мелких деталей и дробей."""
-    img = Image.open(file_storage)
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
-    # Высокое разрешение для распознавания мелких цифр (санузлы, балконы)
-    img.thumbnail((4000, 4000), Image.Resampling.LANCZOS)
-    buffer = io.BytesIO()
-    img.save(buffer, format="JPEG", quality=95)
-    return base64.b64encode(buffer.getvalue()).decode('utf-8')
+# def process_image(file_storage):
+#     """Оптимизация изображения для распознавания мелких деталей и дробей."""
+#     img = Image.open(file_storage)
+#     if img.mode in ("RGBA", "P"):
+#         img = img.convert("RGB")
+#     # Высокое разрешение для распознавания мелких цифр (санузлы, балконы)
+#     img.thumbnail((4000, 4000), Image.Resampling.LANCZOS)
+#     buffer = io.BytesIO()
+#     img.save(buffer, format="JPEG", quality=95)
+#     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
+def analyze_bti(image_base64, target_area=None):
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OPENAI_API_KEY}"
+    }
+
+    # Динамически формируем подсказку в зависимости от наличия площади
+    area_context = ""
+    if target_area:
+        area_context = f"Ожидаемая общая площадь квартиры: {target_area} кв.м. Используй это для самопроверки."
+    else:
+        area_context = "Общая площадь неизвестна, определи её самостоятельно на основе экспликации."
+
+    prompt = (
+        f"Ты — эксперт БТИ. Проанализируй план. {area_context} "
+        "Выведи результат строго в формате JSON: "
+        "{'rooms': [{'name': '...', 'area': float}], 'total_sum': float}"
+    )
+
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:image/jpeg;base64,{image_base64}",
+                        "detail": "high" # Важно для чертежей
+                    }}
+                ]
+            }
+        ],
+        "response_format": { "type": "json_object" }
+    }
+
+    res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    return res.json()['choices'][0]['message']['content']
 
 @app.route('/parse-plan', methods=['POST'])
 def parse_plan():
-    api_key = request.args.get('api_key')
-    if not api_key:
-        return jsonify({"status": "error", "message": "Missing api_key"}), 401
+    # 1. Проверка токена
+    if request.args.get('token') != VALID_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
 
-    file = request.files.get('file')
-    if not file:
-        return jsonify({"status": "error", "message": "No file uploaded"}), 400
+    # 2. Обработка площади (запятые, точки, отсутствие)
+    raw_area = request.args.get('total_area')
+    target_area = None
+    
+    if raw_area:
+        try:
+            # Заменяем запятую на точку и переводим во float
+            target_area = float(raw_area.replace(',', '.'))
+        except ValueError:
+            # Если пришла какая-то каша вместо числа, игнорируем её
+            target_area = None
+
+    # 3. Получение файла
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    
+    file = request.files['file']
+    image_base64 = base64.b64encode(file.read()).decode('utf-8')
 
     try:
-        client = OpenAI(api_key=api_key)
-        base64_image = process_image(file)
+        # 4. Анализ
+        analysis_raw = analyze_bti(image_base64, target_area)
+        data = json.loads(analysis_raw)
+        
+        # 5. Сравнение (только если площадь была передана корректно)
+        ai_total = data.get('total_sum', 0)
+        verification = {"status": "skipped", "difference": 0}
 
-        system_prompt = (
-            "Ты — робот-оцифровщик чертежей БТИ. Твоя задача: извлечь данные 'ID - Название - Площадь'.\n\n"
-            "ПРАВИЛА ИМЕНОВАНИЯ (КРИТИЧЕСКОЕ):\n"
-            "1. Если в зоне помещения НЕТ написанного слова (например, 'кухня', 'жилая', 'коридор'), в поле name пиши строго null.\n"
-            "2. ЗАПРЕЩЕНО придумывать названия самому на основе мебели (унитаз, плита) или контекста.\n\n"
-            "ПРАВИЛА ПАРСИНГА ПЛОЩАДЕЙ:\n"
-            "1. СТАНДАРТ ДРОБИ: Число НАД чертой — номер (ID), число ПОД чертой — площадь (AREA).\n"
-            "2. СТАНДАРТ КРУГА: Номер внутри кружка — ID, площадь под ним или рядом.\n"
-            "3. МАЛЫЕ ЗОНЫ: Обязательно фиксируй числа типа 3.1, 1.0, 0.6. Если у них нет своего ID, пиши id: null.\n"
-            "4. ИГНОРИРУЙ: Линейные размеры стен вдоль линий (например, 5.72, 3.40, 4.30).\n"
-        )
+        if target_area:
+            diff = abs(ai_total - target_area)
+            verification = {
+                "status": "ok" if diff <= 0.5 else "discrepancy",
+                "expected": target_area,
+                "calculated": ai_total,
+                "difference": round(diff, 2)
+            }
 
-        user_init = (
-            "Верни JSON: {'rooms': [{'id': 'str_or_null', 'name': 'str_or_null', 'area': float_or_null}], "
-            "'total_on_paper': float_or_null}"
-        )
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": [
-                    {"type": "text", "text": user_init},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                ]}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0
-        )
-
-        data = json.loads(response.choices[0].message.content)
-        rooms = data.get('rooms', [])
-
-        final_rooms = []
-        calc_sum = 0
-
-        for i, r in enumerate(rooms):
-            area = r.get('area')
-            rid = str(r.get('id')) if r.get('id') and r.get('id') != 'null' else f"б/н_{i+1}"
-
-            raw_name = r.get('name')
-            name = raw_name if raw_name and raw_name.lower() != 'null' else "Помещение"
-
-            if area:
-                calc_sum += float(area)
-
-            line = f"№{rid} — {name}"
-            if area:
-                line += f" — {area} м²"
-            final_rooms.append(line)
-
-        final_rooms.sort()
-
-        output = ["📋 Результат анализа плана:"] + final_rooms
-
-        paper_total = data.get('total_on_paper')
-        if paper_total:
-            output.append(f"\n📈 Итог по документам: {paper_total} м²")
-
-        output.append(f"🧮 Расчетная сумма: {round(calc_sum, 2)} м²")
-
-        return app.response_class(
-            response=json.dumps({
-                "status": "success",
-                "text": "\n".join(output),
-                "raw": data
-            }, ensure_ascii=False),
-            status=200,
-            mimetype='application/json'
-        )
+        return jsonify({
+            "status": "success",
+            "analysis": data,
+            "verification": verification
+        }), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-
-if __name__ == '__main__':
+if name == 'main':
     app.run(host='0.0.0.0', port=5000)
