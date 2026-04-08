@@ -18,7 +18,9 @@ app = Flask(__name__)
 
 # Инициализация клиента OpenAI
 # Рекомендуется задать переменную окружения: export OPENAI_API_KEY='ваш_ключ'
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "ВАШ_КЛЮЧ_ОТ_OPENAI"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ВАШ_КЛЮЧ_ОТ_OPENAI")
+VALID_TOKEN = os.getenv("BTI_SERVICE_TOKEN", "bti_secure_token_2026")
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def region_to_polygon(region, width, height):
