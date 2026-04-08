@@ -1511,24 +1511,21 @@ def apply_beacons():
 #     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
 def step_1_ocr_analysis(image_base64, target_area=None):
-    """Первый этап: Проверка типа документа и распознавание БТИ"""
+    """Этап 1: Распознавание структуры БТИ (строго OCR)"""
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
 
-    area_hint = f"Общая площадь: {target_area} м2." if target_area else "Площади не указаны цифрами, верни null в поле area."
+    area_hint = f"Общая площадь квартиры: {target_area} м2." if target_area else "Общая площадь не указана."
 
     prompt = (
-        "Ты — технический эксперт. Сначала определи, является ли это изображение планом БТИ, архитектурным чертежом или схемой помещения.\n"
-        "1. Если это НЕ план помещения (например, фото человека, пейзаж, документ без схемы): "
-        "верни JSON {'is_plan': false, 'error_message': 'Это не похоже на план БТИ. Пожалуйста, загрузите четкое фото чертежа.'}\n"
-        "2. Если изображение слишком плохого качества и ничего не разобрать: "
-        "верни JSON {'is_plan': false, 'error_message': 'Изображение слишком размытое. Я не могу прочитать данные.'}\n"
-        "3. Если это план помещения: верни JSON {'is_plan': true, 'rooms': [...], 'total_sum': ...}\n\n"
-        f"КОНТЕКСТ ДЛЯ ПЛАНА: {area_hint}\n"
-        "ПРАВИЛА ИЗВЛЕЧЕНИЯ:\n"
-        "- ID: Номера из кружков.\n"
-        "- НАЗВАНИЕ: Строго с плана. Если нет — 'Помещение'. ИГНОРИРУЙ МЕБЕЛЬ.\n"
-        "- ПЛОЩАДЬ: Цифры с плана или расчет пропорционально.\n"
-        "- ФОРМА: 'простая' или 'сложная'.\n"
+        "Ты — технический эксперт БТИ. Проанализируй чертеж.\n\n"
+        "1. ВАЛИДАЦИЯ: Если это НЕ план помещения, верни JSON {'is_plan': false, 'error_message': 'Это не план БТИ'}.\n"
+        "2. ПРАВИЛА ИЗВЛЕЧЕНИЯ:\n"
+        "- Найди ВСЕ помещения. Даже если нет текста, но есть цифра площади (например, 3.1 или 1.0) — добавь их как 'Помещение'.\n"
+        "- НАЗВАНИЕ: Строго по чертежу. Исправляй опечатки (жилaя -> Жилая, кОД -> Коридор).\n"
+        "- ИГНОРИРУЙ МЕБЕЛЬ: Не считай шкафы, диваны и унитазы за отдельные комнаты.\n"
+        f"- ПЛОЩАДЬ: {area_hint} Бери цифры с плана. Если их нет, распредели общую площадь визуально.\n"
+        "- ФОРМА: 'простая' (прямоугольник) или 'сложная' (Г-образная, с выступами).\n\n"
+        "ВЕРНИ JSON СТРОГО С КЛЮЧАМИ: 'is_plan', 'rooms' [ {'id', 'name', 'area', 'shape'} ]"
     )
 
     payload = {
@@ -1544,14 +1541,18 @@ def step_1_ocr_analysis(image_base64, target_area=None):
 
 
 def step_2_photo_planning(ocr_json):
-    """Второй этап: Планирование точек съемки (только для валидных планов)"""
+    """Этап 2: Техническое ТЗ на фотосъемку (без 'воды')"""
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
 
     prompt = (
-        f"Данные БТИ: {ocr_json}\n"
-        "Расставь точки съемки (минимум 2 для простых, 3-4 для сложных). "
-        "Описывай положение камеры и вид (без сторон света). "
-        "Верни JSON с массивом 'photo_points' внутри каждой комнаты."
+        f"Данные БТИ: {ocr_json}\n\n"
+        "Ты — технический инструктор. Составь краткое ТЗ для фотографа.\n"
+        "ПРАВИЛА ТЕКСТА:\n"
+        "- ЗАПРЕЩЕНО: 360 градусов, панорама, уютный, детали, уникальный, мебель, интерьер, стороны света.\n"
+        "- ИСПОЛЬЗУЙ ТОЛЬКО: дверной проем, угол слева/справа от входа, центр стены, окно, противоположная стена.\n"
+        "- Минимум 2 точки для простых, 3-4 для сложных.\n\n"
+        "ВЕРНИ JSON, добавив в каждую комнату 'photo_points': [ {'location', 'view'} ].\n"
+        "location — где стоять. view — куда направить камеру. Используй СТРОГО английские ключи."
     )
 
     payload = {
@@ -1565,9 +1566,11 @@ def step_2_photo_planning(ocr_json):
 
 @app.route('/analyze-bti', methods=['POST'])
 def bti_endpoint():
+    # 1. Токен
     if request.args.get('token', '').strip() != VALID_TOKEN:
         return jsonify({"error": "Unauthorized"}), 401
 
+    # 2. Площадь
     raw_area = request.args.get('total_area', '')
     target_area = None
     if raw_area and str(raw_area).lower().strip() not in ['none', 'null', 'undefined', '']:
@@ -1577,35 +1580,32 @@ def bti_endpoint():
             target_area = None
 
     try:
+        # 3. Файл (внутри try чтобы поймать Werkzeug BadRequest)
         if 'file' not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files['file']
         image_base64 = base64.b64encode(file.read()).decode('utf-8')
 
-        # ШАГ 1: OCR + Валидация
+        # ВЫПОЛНЕНИЕ ЦЕПОЧКИ
         raw_step1 = step_1_ocr_analysis(image_base64, target_area)
         step1_data = json.loads(raw_step1)
 
-        # Если это не план — прерываемся и возвращаем текст ошибки
         if not step1_data.get('is_plan', True):
-            return jsonify({
-                "status": "error",
-                "message": step1_data.get('error_message', 'Ошибка при разборе плана.')
-            }), 200  # 200 чтобы n8n мог прочитать сообщение и вывести пользователю
+            return jsonify({"status": "error", "message": step1_data.get('error_message')}), 200
 
-        # ШАГ 2: Только если план валиден
         raw_step2 = step_2_photo_planning(raw_step1)
         final_data = json.loads(raw_step2)
 
-        ai_sum = sum([r.get('area') or 0 for r in final_data.get('rooms', [])])
+        ai_sum = sum([float(r.get('area') or 0) for r in final_data.get('rooms', [])])
 
         return jsonify({
             "status": "success",
             "analysis": final_data,
             "verification": {
                 "calculated_sum": round(ai_sum, 2),
-                "expected": target_area
+                "expected": target_area,
+                "difference": round(abs(ai_sum - (target_area or 0)), 2) if target_area else 0
             }
         }), 200
 
