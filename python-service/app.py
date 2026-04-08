@@ -1516,16 +1516,30 @@ def analyze_bti(image_base64, target_area=None):
         "Authorization": f"Bearer {OPENAI_API_KEY}"
     }
 
-    # Если target_area это 0, пустая строка или None — считаем, что площади нет
+    # Логика для площадей
     if target_area:
-        area_context = f"Ожидаемая общая площадь квартиры: {target_area} кв.м. Используй это для самопроверки."
+        area_instruction = (
+            f"Общая площадь квартиры: {target_area} кв.м. Если на плане у помещений "
+            f"не указана конкретная площадь, рассчитай её примерно на основе визуальных размеров, "
+            f"чтобы сумма всех частей была близка к {target_area}."
+        )
     else:
-        area_context = "Общая площадь неизвестна, определи её самостоятельно на основе экспликации."
+        area_instruction = (
+            "Если на плане не указаны площади помещений цифрами, в поле 'area' возвращай null. "
+            "Ничего не выдумывай."
+        )
 
+    # Строгий технический промпт
     prompt = (
-        f"Ты — эксперт БТИ. Проанализируй план. {area_context} "
-        "Выведи результат строго в формате JSON: "
-        "{'rooms': [{'name': '...', 'area': float}], 'total_sum': float}"
+        "Ты — технический регистратор. Твоя задача: перенести данные с плана БТИ в JSON. "
+        "ПРАВИЛА:\n"
+        "1. ID: Используй номер помещения, указанный на плане (в кружках или перед текстом).\n"
+        "2. НАЗВАНИЕ: Пиши строго то, что написано на чертеже (например, 'Жилая', 'Кухня'). "
+        "Если название отсутствует — пиши 'Помещение'. Запрещено использовать слова 'Спальня', 'Зал' и т.д., если их нет на плане.\n"
+        "3. ПЛОЩАДЬ: " + area_instruction + "\n"
+        "4. ФОРМАТ: Верни только JSON.\n\n"
+        "Структура JSON:\n"
+        "{'rooms': [{'id': '...', 'name': '...', 'area': float_or_null}], 'total_sum': float}"
     )
 
     payload = {
@@ -1550,16 +1564,14 @@ def analyze_bti(image_base64, target_area=None):
 
 @app.route('/analyze-bti', methods=['POST'])
 def bti_endpoint():
-    # 1. Проверка токена (используем .strip() на случай лишних пробелов из n8n)
+    # 1. Проверка токена (устойчивая к пробелам)
     received_token = request.args.get('token', '').strip()
     if received_token != VALID_TOKEN:
         return jsonify({"error": "Unauthorized"}), 401
 
-    # 2. Обработка площади (теперь допускает пустые значения)
+    # 2. Обработка площади (поддержка None, undefined, пустых строк)
     raw_area = request.args.get('total_area', '')
     target_area = None
-
-    # Список значений, которые мы считаем "пустыми"
     null_values = ['none', 'null', 'undefined', '', '{{', '}}']
 
     if raw_area:
@@ -1578,22 +1590,21 @@ def bti_endpoint():
         file = request.files['file']
         image_base64 = base64.b64encode(file.read()).decode('utf-8')
 
-        # 4. Анализ
+        # 4. Вызов анализа
         analysis_raw = analyze_bti(image_base64, target_area)
         data = json.loads(analysis_raw)
 
-        # 5. Сравнение
+        # 5. Верификация
         ai_total = data.get('total_sum', 0)
         verification = {"status": "skipped", "difference": 0}
 
-        # Проверка срабатывает только если у нас есть реальное число
         if target_area is not None:
-            diff = abs(ai_total - target_area)
+            diff = round(abs(ai_total - target_area), 2)
             verification = {
                 "status": "ok" if diff <= 0.5 else "discrepancy",
                 "expected": target_area,
                 "calculated": ai_total,
-                "difference": round(diff, 2)
+                "difference": diff
             }
 
         return jsonify({
@@ -1603,8 +1614,7 @@ def bti_endpoint():
         }), 200
 
     except Exception as e:
-        import traceback
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
