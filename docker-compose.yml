@@ -5,6 +5,8 @@ services:
     build: ./python-service
     container_name: python-service
     restart: unless-stopped
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     expose:
       - "5000"
     networks:
