@@ -1613,10 +1613,8 @@ def bti_endpoint():
         }), 200
 
     except Exception as e:
-        import traceback, sys
-        traceback.print_exc(file=sys.stdout)
-        sys.stdout.flush()
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
