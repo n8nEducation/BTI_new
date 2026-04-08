@@ -1580,14 +1580,14 @@ def bti_endpoint():
             except ValueError:
                 target_area = None
 
-    # 3. Получение файла
-    if 'file' not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    file = request.files['file']
-    image_base64 = base64.b64encode(file.read()).decode('utf-8')
-
     try:
+        # 3. Получение файла
+        if 'file' not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files['file']
+        image_base64 = base64.b64encode(file.read()).decode('utf-8')
+
         # 4. Анализ
         analysis_raw = analyze_bti(image_base64, target_area)
         data = json.loads(analysis_raw)
