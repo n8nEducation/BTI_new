@@ -1510,111 +1510,108 @@ def apply_beacons():
 #     img.save(buffer, format="JPEG", quality=95)
 #     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-def analyze_bti(image_base64, target_area=None):
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
-    }
+def step_1_ocr_analysis(image_base64, target_area=None):
+    """Первый этап: Проверка типа документа и распознавание БТИ"""
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
 
-    # Логика для площадей
-    if target_area:
-        area_instruction = (
-            f"Общая площадь квартиры: {target_area} кв.м. Если на плане у помещений "
-            f"не указана конкретная площадь, рассчитай её примерно на основе визуальных размеров, "
-            f"чтобы сумма всех частей была близка к {target_area}."
-        )
-    else:
-        area_instruction = (
-            "Если на плане не указаны площади помещений цифрами, в поле 'area' возвращай null. "
-            "Ничего не выдумывай."
-        )
+    area_hint = f"Общая площадь: {target_area} м2." if target_area else "Площади не указаны цифрами, верни null в поле area."
 
-    # Строгий технический промпт
     prompt = (
-        "Ты — технический регистратор. Твоя задача: перенести данные с плана БТИ в JSON. "
-        "ПРАВИЛА:\n"
-        "1. ID: Используй номер помещения, указанный на плане (в кружках или перед текстом).\n"
-        "2. НАЗВАНИЕ: Пиши строго то, что написано на чертеже (например, 'Жилая', 'Кухня'). "
-        "Если название отсутствует — пиши 'Помещение'. Запрещено использовать слова 'Спальня', 'Зал' и т.д., если их нет на плане.\n"
-        "3. ПЛОЩАДЬ: " + area_instruction + "\n"
-        "4. ФОРМАТ: Верни только JSON.\n\n"
-        "Структура JSON:\n"
-        "{'rooms': [{'id': '...', 'name': '...', 'area': float_or_null}], 'total_sum': float}"
+        "Ты — технический эксперт. Сначала определи, является ли это изображение планом БТИ, архитектурным чертежом или схемой помещения.\n"
+        "1. Если это НЕ план помещения (например, фото человека, пейзаж, документ без схемы): "
+        "верни JSON {'is_plan': false, 'error_message': 'Это не похоже на план БТИ. Пожалуйста, загрузите четкое фото чертежа.'}\n"
+        "2. Если изображение слишком плохого качества и ничего не разобрать: "
+        "верни JSON {'is_plan': false, 'error_message': 'Изображение слишком размытое. Я не могу прочитать данные.'}\n"
+        "3. Если это план помещения: верни JSON {'is_plan': true, 'rooms': [...], 'total_sum': ...}\n\n"
+        f"КОНТЕКСТ ДЛЯ ПЛАНА: {area_hint}\n"
+        "ПРАВИЛА ИЗВЛЕЧЕНИЯ:\n"
+        "- ID: Номера из кружков.\n"
+        "- НАЗВАНИЕ: Строго с плана. Если нет — 'Помещение'. ИГНОРИРУЙ МЕБЕЛЬ.\n"
+        "- ПЛОЩАДЬ: Цифры с плана или расчет пропорционально.\n"
+        "- ФОРМА: 'простая' или 'сложная'.\n"
     )
 
     payload = {
         "model": "gpt-4o-mini",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {
-                        "url": f"data:image/jpeg;base64,{image_base64}",
-                        "detail": "high"
-                    }}
-                ]
-            }
-        ],
-        "response_format": { "type": "json_object" }
+        "messages": [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}", "detail": "high"}}
+        ]}],
+        "response_format": {"type": "json_object"}
     }
-
     res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
     return res.json()['choices'][0]['message']['content']
 
+
+def step_2_photo_planning(ocr_json):
+    """Второй этап: Планирование точек съемки (только для валидных планов)"""
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
+
+    prompt = (
+        f"Данные БТИ: {ocr_json}\n"
+        "Расставь точки съемки (минимум 2 для простых, 3-4 для сложных). "
+        "Описывай положение камеры и вид (без сторон света). "
+        "Верни JSON с массивом 'photo_points' внутри каждой комнаты."
+    )
+
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": prompt}],
+        "response_format": {"type": "json_object"}
+    }
+    res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    return res.json()['choices'][0]['message']['content']
+
+
 @app.route('/analyze-bti', methods=['POST'])
 def bti_endpoint():
-    # 1. Проверка токена (устойчивая к пробелам)
-    received_token = request.args.get('token', '').strip()
-    if received_token != VALID_TOKEN:
+    if request.args.get('token', '').strip() != VALID_TOKEN:
         return jsonify({"error": "Unauthorized"}), 401
 
-    # 2. Обработка площади (поддержка None, undefined, пустых строк)
     raw_area = request.args.get('total_area', '')
     target_area = None
-    null_values = ['none', 'null', 'undefined', '', '{{', '}}']
-
-    if raw_area:
-        clean_area = str(raw_area).lower().strip()
-        if clean_area not in null_values:
-            try:
-                target_area = float(clean_area.replace(',', '.'))
-            except ValueError:
-                target_area = None
+    if raw_area and str(raw_area).lower().strip() not in ['none', 'null', 'undefined', '']:
+        try:
+            target_area = float(str(raw_area).replace(',', '.'))
+        except Exception:
+            target_area = None
 
     try:
-        # 3. Получение файла
         if 'file' not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files['file']
         image_base64 = base64.b64encode(file.read()).decode('utf-8')
 
-        # 4. Вызов анализа
-        analysis_raw = analyze_bti(image_base64, target_area)
-        data = json.loads(analysis_raw)
+        # ШАГ 1: OCR + Валидация
+        raw_step1 = step_1_ocr_analysis(image_base64, target_area)
+        step1_data = json.loads(raw_step1)
 
-        # 5. Верификация
-        ai_total = data.get('total_sum', 0)
-        verification = {"status": "skipped", "difference": 0}
+        # Если это не план — прерываемся и возвращаем текст ошибки
+        if not step1_data.get('is_plan', True):
+            return jsonify({
+                "status": "error",
+                "message": step1_data.get('error_message', 'Ошибка при разборе плана.')
+            }), 200  # 200 чтобы n8n мог прочитать сообщение и вывести пользователю
 
-        if target_area is not None:
-            diff = round(abs(ai_total - target_area), 2)
-            verification = {
-                "status": "ok" if diff <= 0.5 else "discrepancy",
-                "expected": target_area,
-                "calculated": ai_total,
-                "difference": diff
-            }
+        # ШАГ 2: Только если план валиден
+        raw_step2 = step_2_photo_planning(raw_step1)
+        final_data = json.loads(raw_step2)
+
+        ai_sum = sum([r.get('area') or 0 for r in final_data.get('rooms', [])])
 
         return jsonify({
             "status": "success",
-            "analysis": data,
-            "verification": verification
+            "analysis": final_data,
+            "verification": {
+                "calculated_sum": round(ai_sum, 2),
+                "expected": target_area
+            }
         }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
