@@ -1655,5 +1655,51 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/add-to-rag', methods=['POST'])
+def add_to_rag():
+    if request.args.get('token', '').strip() != VALID_TOKEN:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json
+    if not data:
+        return jsonify({"error": "No JSON data provided"}), 400
+
+    image_url = data.get('image_url')
+    confirmed_json = data.get('confirmed_json')
+
+    if not image_url or not confirmed_json:
+        return jsonify({"error": "image_url and confirmed_json are required"}), 400
+
+    try:
+        img_response = requests.get(image_url, timeout=10)
+        img_response.raise_for_status()
+
+        img = Image.open(BytesIO(img_response.content))
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        embedding = v_model.encode(img).tolist()
+
+        new_row = {
+            "image_path": image_url,
+            "example_json": confirmed_json,
+            "embedding": embedding
+        }
+
+        result = supabase.table("bti_examples").insert(new_row).execute()
+
+        return jsonify({
+            "status": "success",
+            "message": "Данные успешно добавлены в RAG",
+            "id": result.data[0]['id'] if result.data else None
+        }), 200
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Ошибка скачивания фото: {str(e)}"}), 502
+    except Exception as e:
+        print(f"ОШИБКА RAG-ADD: {str(e)}")
+        return jsonify({"error": f"Внутренняя ошибка: {str(e)}"}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
