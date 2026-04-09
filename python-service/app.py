@@ -1657,9 +1657,6 @@ def bti_endpoint():
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
-    if request.args.get('token', '').strip() != VALID_TOKEN:
-        return jsonify({"error": "Unauthorized"}), 401
-
     data = request.json
     if not data:
         return jsonify({"error": "No JSON data provided"}), 400
@@ -1671,15 +1668,21 @@ def add_to_rag():
         return jsonify({"error": "image_url and confirmed_json are required"}), 400
 
     try:
-        img_response = requests.get(image_url, timeout=10)
+        # 1. Скачиваем фото по ссылке
+        img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
 
+        # 2. Открываем и подготавливаем изображение
         img = Image.open(BytesIO(img_response.content))
+
+        # CLIP модель требует RGB (удаляем альфа-канал, если это PNG)
         if img.mode != 'RGB':
             img = img.convert('RGB')
 
+        # 3. Генерируем вектор (эмбеддинг)
         embedding = v_model.encode(img).tolist()
 
+        # 4. Сохраняем новую запись в таблицу Supabase
         new_row = {
             "image_path": image_url,
             "example_json": confirmed_json,
@@ -1690,15 +1693,15 @@ def add_to_rag():
 
         return jsonify({
             "status": "success",
-            "message": "Данные успешно добавлены в RAG",
+            "message": "Данные успешно добавлены в базу знаний",
             "id": result.data[0]['id'] if result.data else None
         }), 200
 
     except requests.exceptions.RequestException as e:
         return jsonify({"error": f"Ошибка скачивания фото: {str(e)}"}), 502
     except Exception as e:
-        print(f"ОШИБКА RAG-ADD: {str(e)}")
-        return jsonify({"error": f"Внутренняя ошибка: {str(e)}"}), 500
+        print(f"ОШИБКА ПРИ ДОБАВЛЕНИИ В RAG: {str(e)}")
+        return jsonify({"error": f"Внутренняя ошибка сервера: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
