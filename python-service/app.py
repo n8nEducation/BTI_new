@@ -1682,40 +1682,40 @@ def bti_endpoint():
 client = InferenceClient(token=HUGGINGFACE_TOKEN)
 
 def get_clip_512_embedding_hf(image_bytes):
-    """
-    Получает эмбеддинг через официальный SDK Hugging Face.
-    Это исправляет ошибку 410 Gone и Bad Gateway.
-    """
-    # Эта модель стабильнее в бесплатном API и дает 512 измерений
+    # Используем самую стабильную модель от OpenAI на хостинге HF
     model_id = "openai/clip-vit-base-patch32"
-
+    
     for attempt in range(5):
         try:
-            # SDK сам передает байты и заголовки правильно
+            # Делаем запрос через feature_extraction
+            # headers={'X-Wait-For-Model': 'true'} — КРИТИЧНО для борьбы с 502/503
             embedding = client.feature_extraction(
                 data=image_bytes,
-                model=model_id
+                model=model_id,
+                headers={"X-Wait-For-Model": "true"} 
             )
             
-            # Конвертируем результат в обычный список
-            result = embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
-            
-            # Если вернулся вложенный список [[...]], выпрямляем его
-            if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
-                result = result[0]
+            # Обработка ответа
+            if embedding is not None:
+                result = embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
                 
-            return result
-
-        except Exception as e:
-            err_msg = str(e)
-            # Если модель «спит» (Ошибка 503/502), ждем прогрева
-            if "503" in err_msg or "502" in err_msg or "loading" in err_msg.lower():
-                print(f"Попытка {attempt+1}: Модель просыпается, ждем 15 сек...")
-                time.sleep(15)
-                continue
+                # Выпрямляем вложенность [[...]]
+                if isinstance(result, list) and len(result) > 0:
+                    if isinstance(result[0], list):
+                        result = result[0]
+                    return result
             
-            print(f"Ошибка HF SDK: {e}")
-            time.sleep(5)
+        except Exception as e:
+            err_msg = str(e).lower()
+            # Если модель грузится или сервер перегружен (502/503/504)
+            if any(code in err_msg for code in ["502", "503", "504", "loading"]):
+                wait_time = 20 # Увеличиваем ожидание
+                print(f"Попытка {attempt+1}: Модель прогревается или HF перегружен. Ждем {wait_time}с...")
+                time.sleep(wait_time)
+                continue
+            else:
+                print(f"Критическая ошибка HF: {e}")
+                break # Если ошибка 401 (токен) или 400, ретраи не помогут
 
     return None
 
