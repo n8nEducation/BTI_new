@@ -1688,7 +1688,7 @@ def get_clip_512_embedding_hf(image_bytes):
     try:
         # Используем метод feature_extraction
         # Он сам подберет нужные заголовки и обработает бинарные данные
-        embedding = client.feature_extraction(
+        embedding = hf_client.feature_extraction(
             data=image_bytes,
             model="sentence-transformers/clip-ViT-B-32"
         )
