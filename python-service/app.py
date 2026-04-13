@@ -1,5 +1,4 @@
 from flask import Flask, request, send_file, jsonify
-from sentence_transformers import SentenceTransformer
 import requests
 from openai import OpenAI
 from pdf2image import convert_from_bytes
@@ -1684,30 +1683,43 @@ client = InferenceClient(token=HUGGINGFACE_TOKEN)
 def get_clip_512_embedding_hf(image_bytes):
     """
     Получает эмбеддинг через официальный SDK. 
-    Это работает как внешний API, но стабильнее.
+    Модель openai/clip-vit-base-patch32 дает те же 512 измерений,
+    но работает в API стабильнее, чем sentence-transformers.
     """
-    try:
-        # Используем метод feature_extraction
-        # Он сам подберет нужные заголовки и обработает бинарные данные
-        embedding = client.feature_extraction(
-            data=image_bytes,
-            model="openai/clip-vit-base-patch32"  # Эта модель стабильнее в API
-        )
-        
-        # Конвертируем результат в список (SDK может вернуть numpy-подобный объект)
-        if hasattr(embedding, "tolist"):
-            result = embedding.tolist()
-        else:
-            result = list(embedding)
+    # Если хотите остаться на старой модели, замените на: 
+    # model_id = "sentence-transformers/clip-ViT-B-32"
+    model_id = "openai/clip-vit-base-patch32"
+
+    for attempt in range(5):
+        try:
+            # Метод feature_extraction сам добавляет нужные заголовки и Content-Type
+            embedding = client.feature_extraction(
+                data=image_bytes,
+                model=model_id
+            )
             
-        # CLIP иногда возвращает вложенный список [[...]], выравниваем его
-        if isinstance(result, list) and isinstance(result[0], list):
-            result = result[0]
+            # Конвертируем в обычный список
+            result = embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
             
-        return result
-    except Exception as e:
-        print(f"Ошибка Hugging Face SDK: {e}")
-        return None
+            # Выравниваем вложенный список [[...]] -> [...]
+            if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
+                result = result[0]
+                
+            return result
+
+        except Exception as e:
+            error_str = str(e)
+            # Если модель еще загружается на серверах HF
+            if "503" in error_str or "502" in error_str or "loading" in error_str.lower():
+                print(f"Модель HF спит (попытка {attempt+1}/5), ждём 15 сек...")
+                time.sleep(15)
+                continue
+            
+            # Если получили 410, попробуйте сменить model_id выше на другой CLIP
+            print(f"Ошибка Hugging Face на попытке {attempt+1}: {e}")
+            time.sleep(5)
+
+    return None
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
