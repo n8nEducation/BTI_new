@@ -3,7 +3,6 @@ import requests
 from openai import OpenAI
 from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw, ImageFont
-from huggingface_hub import InferenceClient
 import os
 import io
 import json
@@ -14,6 +13,8 @@ import uuid
 import re
 import base64
 import time
+import torch
+import clip
 from datetime import datetime
 from io import BytesIO
 from supabase import create_client
@@ -1678,30 +1679,31 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
-def get_clip_512_embedding_hf(image_bytes):
-    """Получает эмбеддинг 512 через Hugging Face API с retry при холодном старте."""
-    API_URL = "https://router.huggingface.co/hf-inference/models/sentence-transformers/clip-ViT-B-32"
-    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
+# 1. Загружаем модель при старте (она скачает ~350МБ один раз)
+# Модель ViT-B/32 дает те самые 512 измерений
+device = "cpu"
+model, preprocess = clip.load("ViT-B/32", device=device)
 
-    for attempt in range(5):
-        try:
-            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=30)
-            if response.status_code == 200:
-                result = response.json()
-                if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
-                    result = result[0]
-                return result
-            elif response.status_code in (503, 502):
-                wait = response.json().get("estimated_time", 10)
-                print(f"Модель HF загружается (попытка {attempt+1}/5), ждём {wait} сек...")
-                time.sleep(min(wait, 20))
-            else:
-                raise Exception(f"Hugging Face API error {response.status_code}: {response.text}")
-        except requests.exceptions.RequestException as e:
-            print(f"Ошибка сети к HF (попытка {attempt+1}/5): {e}")
-            time.sleep(5)
-
-    return None
+def get_clip_512_embedding_local(image_bytes):
+    try:
+        # Превращаем байты в картинку PIL
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        
+        # Подготавливаем картинку для нейросети
+        image_input = preprocess(image).unsqueeze(0).to(device)
+        
+        # Отключаем градиенты для экономии памяти и скорости
+        with torch.no_grad():
+            image_features = model.encode_image(image_input)
+            
+        # Нормализуем вектор (важно для поиска в базе)
+        image_features /= image_features.norm(dim=-1, keepdim=True)
+        
+        # Превращаем в обычный список
+        return image_features.cpu().numpy().flatten().tolist()
+    except Exception as e:
+        print(f"Ошибка локального CLIP: {e}")
+        return None
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
@@ -1725,11 +1727,11 @@ def add_to_rag():
         img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
 
-        # 3. Генерация эмбеддинга через HF API
-        embedding = get_clip_512_embedding_hf(img_response.content)
-
+        # 3. ГЕНЕРАЦИЯ ЭМБЕДДИНГА (ЛОКАЛЬНО)
+        embedding = get_clip_512_embedding_local(img_response.content)
+        
         if embedding is None:
-            return jsonify({"error": "Hugging Face API failed to return embedding"}), 502
+            return jsonify({"error": "Local CLIP failed to process image"}), 500
 
         # 4. Запись в Supabase
         new_row = {
