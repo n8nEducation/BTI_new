@@ -1682,42 +1682,9 @@ def bti_endpoint():
 client = InferenceClient(token=HUGGINGFACE_TOKEN)
 
 def get_clip_512_embedding_hf(image_bytes):
-    # Используем самую стабильную модель от OpenAI на хостинге HF
-    model_id = "sentence-transformers/all-MiniLM-L6-v2"
-    
-    for attempt in range(5):
-        try:
-            # Делаем запрос через feature_extraction
-            # headers={'X-Wait-For-Model': 'true'} — КРИТИЧНО для борьбы с 502/503
-            embedding = client.feature_extraction(
-                data=image_bytes,
-                model=model_id,
-                headers={"X-Wait-For-Model": "true"} 
-            )
-            
-            # Обработка ответа
-            if embedding is not None:
-                result = embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
-                
-                # Выпрямляем вложенность [[...]]
-                if isinstance(result, list) and len(result) > 0:
-                    if isinstance(result[0], list):
-                        result = result[0]
-                    return result
-            
-        except Exception as e:
-            err_msg = str(e).lower()
-            # Если модель грузится или сервер перегружен (502/503/504)
-            if any(code in err_msg for code in ["502", "503", "504", "loading"]):
-                wait_time = 20 # Увеличиваем ожидание
-                print(f"Попытка {attempt+1}: Модель прогревается или HF перегружен. Ждем {wait_time}с...")
-                time.sleep(wait_time)
-                continue
-            else:
-                print(f"Критическая ошибка HF: {e}")
-                break # Если ошибка 401 (токен) или 400, ретраи не помогут
-
-    return None
+    # ВРЕМЕННАЯ ЗАГЛУШКА: просто создаем 512 нулей
+    print("DEBUG: Используем тестовый вектор (512 нулей)")
+    return [0.0] * 512
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
