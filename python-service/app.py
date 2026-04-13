@@ -1678,45 +1678,43 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
+# Инициализируем клиент один раз (токен берем из ваших переменных)
 client = InferenceClient(token=HUGGINGFACE_TOKEN)
 
 def get_clip_512_embedding_hf(image_bytes):
     """
-    Получает эмбеддинг через официальный SDK. 
-    Модель openai/clip-vit-base-patch32 дает те же 512 измерений,
-    но работает в API стабильнее, чем sentence-transformers.
+    Получает эмбеддинг через официальный SDK Hugging Face.
+    Это исправляет ошибку 410 Gone и Bad Gateway.
     """
-    # Если хотите остаться на старой модели, замените на: 
-    # model_id = "sentence-transformers/clip-ViT-B-32"
+    # Эта модель стабильнее в бесплатном API и дает 512 измерений
     model_id = "openai/clip-vit-base-patch32"
 
     for attempt in range(5):
         try:
-            # Метод feature_extraction сам добавляет нужные заголовки и Content-Type
+            # SDK сам передает байты и заголовки правильно
             embedding = client.feature_extraction(
                 data=image_bytes,
                 model=model_id
             )
             
-            # Конвертируем в обычный список
+            # Конвертируем результат в обычный список
             result = embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
             
-            # Выравниваем вложенный список [[...]] -> [...]
+            # Если вернулся вложенный список [[...]], выпрямляем его
             if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
                 result = result[0]
                 
             return result
 
         except Exception as e:
-            error_str = str(e)
-            # Если модель еще загружается на серверах HF
-            if "503" in error_str or "502" in error_str or "loading" in error_str.lower():
-                print(f"Модель HF спит (попытка {attempt+1}/5), ждём 15 сек...")
+            err_msg = str(e)
+            # Если модель «спит» (Ошибка 503/502), ждем прогрева
+            if "503" in err_msg or "502" in err_msg or "loading" in err_msg.lower():
+                print(f"Попытка {attempt+1}: Модель просыпается, ждем 15 сек...")
                 time.sleep(15)
                 continue
             
-            # Если получили 410, попробуйте сменить model_id выше на другой CLIP
-            print(f"Ошибка Hugging Face на попытке {attempt+1}: {e}")
+            print(f"Ошибка HF SDK: {e}")
             time.sleep(5)
 
     return None
