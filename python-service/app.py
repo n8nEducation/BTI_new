@@ -1683,7 +1683,7 @@ client = InferenceClient(token=HUGGINGFACE_TOKEN)
 
 def get_clip_512_embedding_hf(image_bytes):
     # Используем самую стабильную модель от OpenAI на хостинге HF
-    model_id = "openai/clip-vit-base-patch32"
+    model_id = "sentence-transformers/all-MiniLM-L6-v2"
     
     for attempt in range(5):
         try:
