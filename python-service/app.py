@@ -1679,7 +1679,7 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
-client = InferenceClient(token="HUGGINGFACE_TOKEN")
+client = InferenceClient(token=HUGGINGFACE_TOKEN)
 
 def get_clip_512_embedding_hf(image_bytes):
     """
@@ -1691,7 +1691,7 @@ def get_clip_512_embedding_hf(image_bytes):
         # Он сам подберет нужные заголовки и обработает бинарные данные
         embedding = client.feature_extraction(
             data=image_bytes,
-            model="sentence-transformers/clip-ViT-B-32"
+            model="openai/clip-vit-base-patch32"  # Эта модель стабильнее в API
         )
         
         # Конвертируем результат в список (SDK может вернуть numpy-подобный объект)
