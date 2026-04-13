@@ -1681,32 +1681,30 @@ def bti_endpoint():
 hf_client = InferenceClient(token=HUGGINGFACE_TOKEN)
 
 def get_clip_512_embedding_hf(image_bytes):
-    """
-    Получает эмбеддинг через официальный SDK. 
-    Это работает как внешний API, но стабильнее.
-    """
-    try:
-        # Используем метод feature_extraction
-        # Он сам подберет нужные заголовки и обработает бинарные данные
-        embedding = hf_client.feature_extraction(
-            data=image_bytes,
-            model="sentence-transformers/clip-ViT-B-32"
-        )
-        
-        # Конвертируем результат в список (SDK может вернуть numpy-подобный объект)
-        if hasattr(embedding, "tolist"):
-            result = embedding.tolist()
-        else:
-            result = list(embedding)
-            
-        # CLIP иногда возвращает вложенный список [[...]], выравниваем его
-        if isinstance(result, list) and isinstance(result[0], list):
-            result = result[0]
-            
-        return result
-    except Exception as e:
-        print(f"Ошибка Hugging Face SDK: {e}")
-        return None
+    """Получает эмбеддинг 512 через Hugging Face API с retry при холодном старте."""
+    API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/clip-ViT-B-32"
+    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
+
+    for attempt in range(5):
+        try:
+            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=30)
+            if response.status_code == 200:
+                result = response.json()
+                # CLIP иногда возвращает вложенный список [[...]], выравниваем его
+                if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
+                    result = result[0]
+                return result
+            elif response.status_code in (503, 502):
+                wait = response.json().get("estimated_time", 10)
+                print(f"Модель HF загружается (попытка {attempt+1}/5), ждём {wait} сек...")
+                time.sleep(min(wait, 20))
+            else:
+                raise Exception(f"Hugging Face API error {response.status_code}: {response.text}")
+        except requests.exceptions.RequestException as e:
+            print(f"Ошибка сети к HF (попытка {attempt+1}/5): {e}")
+            time.sleep(5)
+
+    return None
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
