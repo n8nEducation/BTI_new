@@ -1,5 +1,4 @@
 from flask import Flask, request, send_file, jsonify
-from sentence_transformers import SentenceTransformer
 import requests
 from openai import OpenAI
 from pdf2image import convert_from_bytes
@@ -1679,7 +1678,7 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
-client = InferenceClient(token="HUGGINGFACE_TOKEN")
+hf_client = InferenceClient(token=HUGGINGFACE_TOKEN)
 
 def get_clip_512_embedding_hf(image_bytes):
     """
