@@ -1678,44 +1678,47 @@ def bti_endpoint():
 
 
 def get_clip_512_embedding_hf(image_bytes, hf_token):
-    # Используем проверенную модель для эмбеддингов
-    API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/clip-ViT-B-32"
+    # Используем более стабильный эндпоинт
+    API_URL = "https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32"
     
     headers = {
         "Authorization": f"Bearer {hf_token}",
         "Content-Type": "application/octet-stream",
-        "User-Agent": "Python-Requests/RAG-App"
+        "X-Wait-For-Model": "true"  # Важно: заставляет API загрузить модель в память
     }
 
     for attempt in range(3):
         try:
-            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=30)
+            print(f"Попытка {attempt + 1}: отправка запроса в HF...")
+            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=40)
             
-            # Если HF возвращает страницу ошибки (HTML), response.json() выдаст ошибку
+            # Проверяем, не пришел ли HTML вместо JSON
             if "text/html" in response.headers.get("Content-Type", ""):
-                print(f"Критическая ошибка: API вернул HTML вместо JSON. Проверьте эндпоинт.")
-                break
+                print("Ошибка: Сервер вернул HTML. Проверьте правильность ссылки или токена.")
+                continue
 
             if response.status_code == 200:
                 result = response.json()
-                # Важно: Sentence-transformers возвращают список векторов. 
-                # Нам нужен первый элемент.
+                # CLIP от OpenAI возвращает список векторов. Извлекаем нужный:
                 if isinstance(result, list):
-                    return result[0]
+                    # Если результат [[...]], берем первый элемент
+                    return result[0] if isinstance(result[0], list) else result
                 return result
             
             elif response.status_code == 503:
-                print("Модель прогревается, ждем 10 сек...")
-                time.sleep(10)
-                continue
+                data = response.json()
+                wait_time = data.get("estimated_time", 15)
+                print(f"Модель прогревается, ждем {wait_time} сек...")
+                time.sleep(wait_time)
             else:
-                print(f"Ошибка API {response.status_code}: {response.text}")
+                print(f"HF Error {response.status_code}: {response.text}")
+                time.sleep(2)
                 
         except Exception as e:
-            print(f"Ошибка на попытке {attempt}: {e}")
+            print(f"Ошибка при запросе: {e}")
             time.sleep(2)
 
-    raise Exception("Hugging Face не вернул вектор (возможно, модель недоступна)")
+    return None
 
 
 @app.route('/add-to-rag', methods=['POST'])
@@ -1753,12 +1756,22 @@ def add_to_rag():
 
         # 3. Генерация эмбеддинга 512 через HF API
         embedding = get_clip_512_embedding_hf(img_response.content, HUGGINGFACE_TOKEN)
+        
+        if embedding is None:
+            return jsonify({"error": "Hugging Face API failed to return embedding"}), 502
 
-        # Убеждаемся, что embedding — это плоский список чисел
-        if isinstance(embedding, list) and isinstance(embedding[0], list):
-            embedding = embedding[0]
 
-        print(f"Вектор получен, размерность: {len(embedding)}")
+        # Проверяем размерность перед вставкой в Supabase
+        if len(embedding) != 512:
+         # Если размерность не 512, база выдаст ошибку. Логируем это.
+            print(f"Критично: Получена размерность {len(embedding)}, а нужна 512!")
+            return jsonify({"error": f"Wrong embedding size: {len(embedding)}"}), 500
+
+        new_row = {
+            "image_path": image_url,
+            "example_json": rag_data,
+         "embedding": embedding
+        }
 
         # 4. Запись в Supabase
         new_row = {
