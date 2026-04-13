@@ -1680,7 +1680,7 @@ def bti_endpoint():
 
 def get_clip_512_embedding_hf(image_bytes):
     """Получает эмбеддинг 512 через Hugging Face API с retry при холодном старте."""
-    API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/clip-ViT-B-32"
+    API_URL = "https://router.huggingface.co/hf-inference/models/sentence-transformers/clip-ViT-B-32"
     headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
 
     for attempt in range(5):
