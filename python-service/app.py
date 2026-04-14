@@ -13,8 +13,6 @@ import uuid
 import re
 import base64
 import time
-import torch
-import clip
 from datetime import datetime
 from io import BytesIO
 from supabase import create_client
@@ -1539,7 +1537,7 @@ def get_image_embedding(image_bytes):
     )
     description = desc_resp.choices[0].message.content
 
-    embed_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
+    embed_resp = client.embeddings.create(model="text-embedding-3-small", input=description, dimensions=512)
     return embed_resp.data[0].embedding
 
 
@@ -1679,32 +1677,6 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
-# 1. Загружаем модель при старте (она скачает ~350МБ один раз)
-# Модель ViT-B/32 дает те самые 512 измерений
-device = "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)
-
-def get_clip_512_embedding_local(image_bytes):
-    try:
-        # Превращаем байты в картинку PIL
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        
-        # Подготавливаем картинку для нейросети
-        image_input = preprocess(image).unsqueeze(0).to(device)
-        
-        # Отключаем градиенты для экономии памяти и скорости
-        with torch.no_grad():
-            image_features = model.encode_image(image_input)
-            
-        # Нормализуем вектор (важно для поиска в базе)
-        image_features /= image_features.norm(dim=-1, keepdim=True)
-        
-        # Превращаем в обычный список
-        return image_features.cpu().numpy().flatten().tolist()
-    except Exception as e:
-        print(f"Ошибка локального CLIP: {e}")
-        return None
-
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
     data = request.json
@@ -1727,11 +1699,11 @@ def add_to_rag():
         img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
 
-        # 3. ГЕНЕРАЦИЯ ЭМБЕДДИНГА (ЛОКАЛЬНО)
-        embedding = get_clip_512_embedding_local(img_response.content)
-        
+        # 3. ГЕНЕРАЦИЯ ЭМБЕДДИНГА (описание через gpt-4o-mini + text-embedding-3-small)
+        embedding = get_image_embedding(img_response.content)
+
         if embedding is None:
-            return jsonify({"error": "Local CLIP failed to process image"}), 500
+            return jsonify({"error": "Failed to generate image embedding"}), 500
 
         # 4. Запись в Supabase
         new_row = {
