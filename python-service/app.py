@@ -1560,28 +1560,59 @@ def get_best_example(image_bytes):
 
 
 def step_1_ocr_analysis(image_base64, target_area=None):
-    """Этап 1: Распознавание БТИ с жестким запретом на додумывание названий."""
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
 
-    area_context = ""
-    if target_area:
-        area_context = f"\nОРИЕНТИР: Общая площадь ~{target_area} м2. Используй для сверки цифр."
+    area_hint = f"ОРИЕНТИР: Общая площадь по ЕГРН/БТИ = {target_area} м2." if target_area else ""
 
     prompt = (
-        "Ты — технический OCR-инструмент. Твоя задача — ПЕРЕПИСАТЬ данные с плана, а не интерпретировать их.\n"
-        f"{area_context}\n"
-        "\nПРАВИЛА ИМЕНОВАНИЯ ПОМЕЩЕНИЙ:\n"
-        "1. Пиши название ТОЛЬКО если оно явно написано текстом на плане (напр. 'Кухня', 'Жилая').\n"
-        "2. Если названия НЕТ или оно неразборчиво, пиши строго: 'Помещение' (без кавычек).\n"
-        "3. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО угадывать назначение комнаты по её форме или расположению (например, видеть унитаз и писать 'Санузел', если там нет этого слова).\n"
-        "4. Если рядом с комнатой стоит только номер (напр. '5'), используй его в поле 'id', а в 'name' пиши 'Помещение'.\n"
-        "\nМАТЕМАТИЧЕСКИЕ ПРАВИЛА:\n"
-        "- Площадь (area): только число. Если не видишь цифру площади — ставь null.\n"
-        "- Сумма площадей 'rooms' должна стремиться к общей площади, если она указана.\n"
+        "Ты — универсальный эксперт по анализу планов недвижимости. Твоя задача — найти все помещения и их площади.\n"
+        f"{area_hint}\n\n"
+        "ПРАВИЛА ПОИСКА ДАННЫХ:\n"
+        "1. ТИП А (Чертеж БТИ): Ищи дроби. Число сверху — номер, число снизу — площадь.\n"
+        "2. ТИП Б (Современный план): Ищи текстовые блоки, где указано название и цифра с 'м2' или просто цифра под названием.\n"
+        "   - Пример: 'Кухня 9 м2' -> name: 'Кухня', area: 9.0\n"
+        "   - Пример: 'Ванная 5' -> name: 'Ванная', area: 5.0\n"
+        "\nАЛГОРИТМ ПРОВЕРКИ:\n"
+        "- ПЛОЩАДЬ: Ищи цифры, которые находятся ВНУТРИ контуров комнат. Игнорируй внешние надписи (адреса, логотипы), кроме 'Общая площадь'.\n"
+        "- ИСКЛЮЧЕНИЯ: Не принимай за площадь высоту потолков (H=...) и линейные размеры вдоль стен.\n"
+        "- СУММА: Перед выдачей JSON сложи все найденные площади. Если сумма значительно (более 15%) отличается от 'target_area', перепроверь, не пропустил ли ты коридор или санузел.\n"
         "\nВЫХОДНОЙ JSON:\n"
         "{\n"
         "  'is_plan': true,\n"
-        "  'rooms': [{'id': 'номер или null', 'name': 'текстовое название или Помещение', 'area': float}]\n"
+        "  'rooms': [{'id': 'string_or_null', 'name': 'string', 'area': float}],\n"
+        "  'detected_total_area': float\n"
+        "}"
+    )
+
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}", "detail": "high"}}
+        ]}],
+        "response_format": {"type": "json_object"}
+    }
+    res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    return res.json()['choices'][0]['message']['content']
+
+
+def critic_verification(image_base64, step1_json, target_area=None):
+    """Дополнительный этап: Критик-контролер перепроверяет работу OCR."""
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
+
+    prompt = (
+        "Ты — старший ревизор чертежей. Тебе прислали результат автоматического распознавания плана.\n"
+        f"ИСХОДНЫЕ ДАННЫЕ ИЗВЛЕЧЕНИЯ: {step1_json}\n"
+        f"ЗАЯВЛЕННАЯ ОБЩАЯ ПЛОЩАДЬ: {target_area if target_area else 'Не указана'}\n\n"
+        "ТВОЯ ЗАДАЧА: Сравнить JSON с картинкой и найти ошибки.\n"
+        "1. Проверь, нет ли в списке лишних помещений (например, ИИ принял длину стены за площадь).\n"
+        "2. Проверь, не пропущено ли какое-то помещение, которое явно есть на плане.\n"
+        "3. Убедись, что названия комнат (если они есть) соответствуют тексту на плане.\n"
+        "4. Если на картинке есть 'Общая площадь', сравни её с суммой площадей в JSON.\n\n"
+        "ОТВЕТЬ В JSON:\n"
+        "{\n"
+        "  'corrected_json': { ... },\n"
+        "  'critic_comment': 'что именно было исправлено или почему всё верно'\n"
         "}"
     )
 
@@ -1646,37 +1677,35 @@ def bti_endpoint():
         file_bytes = file.read()
         image_base64 = base64.b64encode(file_bytes).decode('utf-8')
 
-        # ШАГ 1: OCR и математический анализ
+        # ШАГ 1: Первичное распознавание
         raw_step1 = step_1_ocr_analysis(image_base64, target_area)
         step1_data = json.loads(raw_step1)
 
         if not step1_data.get('is_plan', True):
             return jsonify({"status": "error", "message": step1_data.get('error_message')}), 200
 
-        # ШАГ 2: Планирование точек съемки
-        raw_step2 = step_2_photo_planning(raw_step1)
+        # ШАГ 2: КРИТИКА (Self-Correction)
+        raw_critic = critic_verification(image_base64, raw_step1, target_area)
+        critic_data = json.loads(raw_critic)
+
+        # Перезаписываем данные исправленной версией от Критика
+        verified_step1 = json.dumps(critic_data.get('corrected_json'))
+
+        # ШАГ 3: Планирование точек съемки (уже на основе проверенных данных)
+        raw_step2 = step_2_photo_planning(verified_step1)
         final_data = json.loads(raw_step2)
 
-        # МАТЕМАТИЧЕСКАЯ ВЕРИФИКАЦИЯ (Python-логика)
+        # Финальная математика для ответа пользователю
         ai_sum = sum([float(r.get('area') or 0) for r in final_data.get('rooms', [])])
-
-        # Считаем расхождение
-        is_reliable = True
-        diff = 0
-        if target_area:
-            diff = round(abs(ai_sum - target_area), 2)
-            # Если расхождение больше 10% от целевой площади — помечаем как "сомнительно"
-            if diff > (target_area * 0.1):
-                is_reliable = False
 
         return jsonify({
             "status": "success",
             "analysis": final_data,
+            "critic_note": critic_data.get('critic_comment'),
             "verification": {
                 "calculated_sum": round(ai_sum, 2),
                 "expected": target_area,
-                "difference": diff,
-                "is_reliable": is_reliable  # Флаг: можно ли верить этому расчету
+                "difference": round(abs(ai_sum - (target_area or 0)), 2)
             }
         }), 200
 
