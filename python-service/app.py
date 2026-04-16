@@ -1559,30 +1559,38 @@ def apply_beacons():
 #     return None
 
 
-def step_1_ocr_analysis(image_base64, target_area=None, example_json=None):
-    """Этап 1: Распознавание БТИ с ПРЯМЫМ ЗАПРЕТОМ на догадки"""
+def step_1_ocr_analysis(image_base64, target_area=None):
+    """Этап 1: Распознавание БТИ с математической верификацией."""
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
 
-    area_hint = f"Общая площадь: {target_area} м2." if target_area else ""
-
-    rag_instruction = ""
-    if example_json:
-        rag_instruction = f"\nОРИЕНТИРУЙСЯ НА ЭТОТ ЭТАЛОН (RAG):\n{json.dumps(example_json, ensure_ascii=False)}\n"
+    # Формируем подсказку по площади для мат. модели ИИ
+    area_context = ""
+    if target_area:
+        area_context = (
+            f"\nИНФОРМАЦИЯ О ПЛОЩАДИ: Заявленная общая площадь объекта — {target_area} м2.\n"
+            "ИСПОЛЬЗУЙ ЭТО КАК ЯКОРЬ: Сумма площадей всех комнат в твоем JSON должна быть максимально близка к этому числу. "
+            "Если на плане цифра неразборчива, выбирай то значение, которое в сумме с остальными дает результат, близкий к заявленной площади."
+        )
+    else:
+        area_context = "\nИНФОРМАЦИЯ О ПЛОЩАДИ: Общая площадь не указана. Ориентируйся строго на визуальные данные."
 
     prompt = (
-        "Ты — строгий технический контролер. Твоя первая и главная задача: определить, является ли фото ПЛАНОМ БТИ (чертежом).\n\n"
-        f"{rag_instruction}"
-        "ПРИЗНАКИ ПЛАНА (должны быть все): \n"
-        "1. Схематичные черные линии стен на светлом фоне.\n"
-        "2. Технические цифры (площади, размеры).\n"
-        "3. Отсутствие реальных объектов (людей, животных, мебели как на фото, офисных кресел).\n\n"
-        "КРИТИЧЕСКОЕ ПРАВИЛО:\n"
-        "- Если на фото изображено живое существо, мебель в пространстве, интерьер или просто случайный предмет — это НЕ ПЛАН.\n"
-        "- В этом случае СТОП. Верни только: {'is_plan': false, 'error_message': 'На фото изображен объект или интерьер, а не технический план БТИ. Пожалуйста, загрузите чертеж.'}\n\n"
-        "ТОЛЬКО ЕСЛИ ЭТО ПЛАН:\n"
-        "- Перечисли комнаты. Названия — только по тексту. Если текста нет — 'Помещение'.\n"
-        "- Площадь: только из центра комнат. ИГНОРИРУЙ размеры вдоль стен (это длины).\n"
-        "Верни JSON: {'is_plan': true, 'rooms': [{'id': '...', 'name': '...', 'area': float_or_null}]}"
+        "Ты — строгий технический контролер. Твоя задача: извлечь данные из ПЛАНА БТИ.\n"
+        f"{area_context}\n"
+        "\nПРИЗНАКИ ПЛАНА (обязательно): черные линии стен, технические цифры площадей, отсутствие мебели/интерьера.\n"
+        "\nКРИТИЧЕСКИЕ ПРАВИЛА:\n"
+        "- Если это не чертеж, верни: {'is_plan': false, 'error_message': '...'}\n"
+        "- Площадь (area): извлекай только из центра помещений. Игнорируй размеры стен (длины).\n"
+        "- Дробные числа: всегда используй точку (например, 14.5).\n"
+        "\nВЫХОДНОЙ JSON:\n"
+        "{\n"
+        "  'is_plan': true, \n"
+        "  'rooms': [{'id': '1', 'name': '...', 'area': float}],\n"
+        "  'ai_self_check': {\n"
+        "    'total_sum': float, \n"
+        "    'matches_target': boolean\n"
+        "  }\n"
+        "}"
     )
 
     payload = {
@@ -1625,11 +1633,11 @@ def step_2_photo_planning(ocr_json):
 
 @app.route('/analyze-bti', methods=['POST'])
 def bti_endpoint():
-    # 1. Токен
+    # 1. Проверка токена
     if request.args.get('token', '').strip() != VALID_TOKEN:
         return jsonify({"error": "Unauthorized"}), 401
 
-    # 2. Площадь
+    # 2. Обработка входной площади
     raw_area = request.args.get('total_area', '')
     target_area = None
     if raw_area and str(raw_area).lower().strip() not in ['none', 'null', 'undefined', '']:
@@ -1639,29 +1647,35 @@ def bti_endpoint():
             target_area = None
 
     try:
-        # 3. Файл (внутри try чтобы поймать Werkzeug BadRequest)
         if 'file' not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files['file']
         file_bytes = file.read()
-
-        # # RAG: ищем ближайший пример в базе знаний
-        # knowledge_example = get_best_example(file_bytes)
-
         image_base64 = base64.b64encode(file_bytes).decode('utf-8')
 
-        # ВЫПОЛНЕНИЕ ЦЕПОЧКИ
+        # ШАГ 1: OCR и математический анализ
         raw_step1 = step_1_ocr_analysis(image_base64, target_area)
         step1_data = json.loads(raw_step1)
 
         if not step1_data.get('is_plan', True):
             return jsonify({"status": "error", "message": step1_data.get('error_message')}), 200
 
+        # ШАГ 2: Планирование точек съемки
         raw_step2 = step_2_photo_planning(raw_step1)
         final_data = json.loads(raw_step2)
 
+        # МАТЕМАТИЧЕСКАЯ ВЕРИФИКАЦИЯ (Python-логика)
         ai_sum = sum([float(r.get('area') or 0) for r in final_data.get('rooms', [])])
+
+        # Считаем расхождение
+        is_reliable = True
+        diff = 0
+        if target_area:
+            diff = round(abs(ai_sum - target_area), 2)
+            # Если расхождение больше 10% от целевой площади — помечаем как "сомнительно"
+            if diff > (target_area * 0.1):
+                is_reliable = False
 
         return jsonify({
             "status": "success",
@@ -1669,7 +1683,8 @@ def bti_endpoint():
             "verification": {
                 "calculated_sum": round(ai_sum, 2),
                 "expected": target_area,
-                "difference": round(abs(ai_sum - (target_area or 0)), 2) if target_area else 0
+                "difference": diff,
+                "is_reliable": is_reliable  # Флаг: можно ли верить этому расчету
             }
         }), 200
 
