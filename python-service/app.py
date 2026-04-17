@@ -1558,14 +1558,18 @@ def analyze_bti():
 
         # 3. Запрос к gpt-4o-mini
         prompt = """
-        Анализируй это изображение.
-        1. Определи, является ли это планом БТИ, экспликацией или чертежом помещения.
-        2. Если это НЕ план помещения (например, фото животного, еды или просто текст), верни JSON: {"error": "not_a_bti", "message": "На фото не план БТИ"}.
-        3. Если это план БТИ:
-           - Извлеки общую площадь (total_area).
-           - Извлеки список всех помещений с их площадями.
-           - Верни JSON в формате: {"is_bti": true, "total_area": float, "rooms": {"название": площадь_float}}
-        """
+Анализируй план БТИ. Твоя задача — извлечь ТОЛЬКО площади помещений.
+
+Инструкции:
+1. Ищи номера помещений (обычно в кружке или над чертой) и площадь под ними.
+2. НЕ ПУТАЙ линейные размеры (длинные линии вдоль стен, например 10.74, 3.20) с площадями.
+3. Общая площадь на таких планах обычно указана большой цифрой в центре или в экспликации (например, 64.1).
+4. Если видишь дробь типа 1/64.1, то 1 - это номер помещения, а 64.1 - площадь.
+5. Названия комнат (name) пиши по-русски (например, "Жилая", "Кухня", "Санузел"). Если название не указано, пиши "Помещение [номер]".
+
+Верни JSON:
+{"is_bti": true, "total_area": float, "rooms": [{"id": "str", "name": "str", "area": float}]}
+"""
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -1588,6 +1592,14 @@ def analyze_bti():
                 "error": ai_data["message"]
             }), 200
 
+        # Чистим названия комнат
+        if "rooms" in ai_data:
+            for room in ai_data["rooms"]:
+                if isinstance(room.get("name"), str):
+                    room["name"] = room["name"].replace('\xa0', ' ').strip()
+                    if not room["name"]:
+                        room["name"] = f"Помещение {room.get('id')}"
+
         # 5. Математическая модель + планирование точек съемки
         analysis_result = {
             "status": "success",
@@ -1596,7 +1608,7 @@ def analyze_bti():
         }
 
         if provided_area is not None:
-            rooms_sum = sum(ai_data.get("rooms", {}).values())
+            rooms_sum = sum(r.get("area", 0) for r in ai_data.get("rooms", []))
             diff = abs(rooms_sum - provided_area)
             is_valid = diff < (provided_area * 0.05)  # погрешность 5%
 
@@ -1608,12 +1620,7 @@ def analyze_bti():
             }
 
         # Планирование точек съемки
-        rooms_dict = ai_data.get("rooms", {})
-        rooms_list = [
-            {"id": str(i + 1), "name": name, "area": area}
-            for i, (name, area) in enumerate(rooms_dict.items())
-        ]
-        raw_step2 = step_2_photo_planning(json.dumps({"rooms": rooms_list}))
+        raw_step2 = step_2_photo_planning(json.dumps({"rooms": ai_data.get("rooms", [])}))
         analysis_result["analysis"] = json.loads(raw_step2)
 
         return jsonify(analysis_result), 200
