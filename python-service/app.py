@@ -1552,8 +1552,9 @@ def is_valid_name(name):
     return len(clean_name) >= 3
 
 
-def encode_image(image_bytes):
-    return base64.b64encode(image_bytes).strip().decode('utf-8')
+def encode_image(file_storage):
+    """Преобразует файл из Flask в base64 стринг."""
+    return base64.b64encode(file_storage.read()).decode('utf-8')
 
 
 SYSTEM_PROMPT = """
@@ -1577,56 +1578,77 @@ SYSTEM_PROMPT = """
 
 @app.route('/analyze-bti', methods=['POST'])
 def analyze_bti():
+    # 1. Получаем файл из тела запроса
     if 'file' not in request.files:
-        return jsonify({"error": "true", "message": "Файл не передан"}), 400
+        return jsonify({"error": True, "message": "Файл не передан"}), 400
 
     file = request.files['file']
-    target_total_area = request.args.get('total_area', type=float)
 
-    image_base64 = encode_image(file.read())
+    # 2. Получаем площадь из query-параметров (необязательно)
+    total_area_param = request.args.get('total_area', type=float)
+
+    # Кодируем изображение
+    base_64_image = encode_image(file)
+
+    # 3. Формируем запрос к GPT-4o-mini
+    prompt = """
+    Проанализируй изображение. Твоя задача:
+    1. Определить, является ли это планом БТИ (техническим планом помещения).
+       Если на фото НЕ план БТИ, верни JSON: {"error": true, "message": "На фото не БТИ"}.
+
+    2. Если это план БТИ, извлеки список помещений:
+       - 'id': номер помещения, указанный на плане.
+       - 'name': название помещения строго с плана.
+       - ВАЖНО: Если названия рядом с номером нет, пиши строго 'помещение'. Не додумывай назначение по мебели или контексту.
+       - 'area': площадь помещения (если указана цифрой рядом).
+
+    Верни результат строго в формате JSON:
+    {
+        "error": false,
+        "is_bti": true,
+        "rooms": [
+            {"id": "1", "name": "Жилая комната", "area": 15.4},
+            {"id": "2", "name": "помещение", "area": 3.2}
+        ]
+    }
+    """
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
                 {
                     "role": "user",
                     "content": [
+                        {"type": "text", "text": prompt},
                         {
                             "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
+                            "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}
                         }
-                    ]
+                    ],
                 }
             ],
             response_format={"type": "json_object"}
         )
 
-        data = json.loads(response.choices[0].message.content)
+        # Превращаем ответ GPT в Python dict
+        result = response.choices[0].message.content
+        data = json.loads(result)
 
-        if data.get("error") == "true" or not data.get("is_bti"):
-            return jsonify({"error": "true", "message": data.get("message", "На фото не план БТИ")}), 200
+        # 4. Математическая проверка, если передана общая площадь
+        if not data.get("error") and total_area_param is not None:
+            sum_rooms_area = sum(room.get('area', 0) for room in data.get('rooms', []))
+            data['math_analysis'] = {
+                "input_total_area": total_area_param,
+                "calculated_sum": round(sum_rooms_area, 2),
+                "diff": round(total_area_param - sum_rooms_area, 2),
+                "is_match": abs(total_area_param - sum_rooms_area) < 0.1
+            }
 
-        analysis_metadata = {}
-        if target_total_area:
-            detected_sum = sum(room['area'] for room in data['rooms'] if isinstance(room['area'], (int, float)))
-            analysis_metadata['target_total_area'] = target_total_area
-            analysis_metadata['detected_sum'] = detected_sum
-            analysis_metadata['deviation'] = round(target_total_area - detected_sum, 2)
-            analysis_metadata['is_consistent'] = abs(analysis_metadata['deviation']) < 0.1
-
-            for room in data['rooms']:
-                room['share_percentage'] = round((room['area'] / detected_sum) * 100, 2) if detected_sum > 0 else 0
-
-        return jsonify({
-            "status": "success",
-            "data": data['rooms'],
-            "math_analysis": analysis_metadata if target_total_area else "No total area provided for math model"
-        })
+        return jsonify(data)
 
     except Exception as e:
-        return jsonify({"error": "true", "message": str(e)}), 500
+        return jsonify({"error": True, "message": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
