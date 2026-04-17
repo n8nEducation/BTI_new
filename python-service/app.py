@@ -1538,12 +1538,11 @@ def step_2_photo_planning(ocr_json):
 
 def clean_room_name(name, room_id):
     if not name:
-        return f"Помещение {room_id}"
-    cleaned = re.sub(r'[\x00-\x1f\x7f-\x9f\xad]', '', name)
-    cleaned = cleaned.replace('\u0000', '').strip()
-    if len(cleaned) < 2 or cleaned.lower().startswith('u000'):
-        return f"Помещение {room_id}"
-    return cleaned
+        return f"помещение {room_id}"
+    clean_name = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', name).strip()
+    if not re.search(r'[а-яА-Яa-zA-Z]', clean_name) or len(clean_name) < 2:
+        return f"помещение {room_id}"
+    return clean_name
 
 
 def is_valid_name(name):
@@ -1557,24 +1556,24 @@ def encode_image(image_file):
     return base64.b64encode(image_file.read()).decode('utf-8')
 
 
-@app.route('/analyze-bti', methods=['POST'])
+@app.route('/analyze', methods=['POST'])
 def analyze_bti():
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files['file']
     total_area_param = request.args.get('total_area', type=float)
-    base64_image = encode_image(file)
+    base64_image = base64.b64encode(file.read()).decode('utf-8')
 
     system_prompt = (
-        "Ты — анализатор планов БТИ. Твоя задача — вернуть JSON с данными о помещениях.\n"
-        "ПРАВИЛА ДЛЯ ПОЛЯ 'name':\n"
-        "1. Ищи текстовые названия (например: 'Кухня', 'Коридор', 'Жилая', 'Санузел').\n"
-        "2. ЕСЛИ НА ПЛАНЕ НЕТ ЯВНОГО ТЕКСТОВОГО НАЗВАНИЯ, пиши строго слово 'помещение'.\n"
-        "3. НЕ пытайся интерпретировать цифры, линии или мелкий шум как текст. Если сомневаешься — пиши 'помещение'.\n"
-        "4. Поле 'id' — это номер помещения на плане (обычно цифра в кружке или просто крупная цифра в центре).\n"
-        "5. Поле 'area' — это площадь, указанная на плане для этого ID.\n"
-        "Ответ должен быть в формате JSON: {\"rooms\": [{\"id\": \"1\", \"name\": \"...\", \"area\": 10.5}]}"
+        "Ты — эксперт БТИ. Проанализируй план.\n"
+        "1. Если на фото НЕ план БТИ, верни: {\"error\": \"На фото не БТИ\"}.\n"
+        "2. Если план, верни JSON: {\"rooms\": [{\"id\": \"номер\", \"name\": \"название\", \"area\": число}]}.\n"
+        "ПРАВИЛА:\n"
+        "- 'name': бери СТРОГО текст с плана (Жилая, Кухня). Если текста нет или там цифры/символы — оставь поле пустым.\n"
+        "- 'id': это номер помещения на плане.\n"
+        "- 'area': площадь этого помещения.\n"
+        "НИКОГО НЕ ДОДУМЫВАЙ. Если не видишь четкого слова — не пиши ничего в name."
     )
 
     try:
@@ -1590,31 +1589,33 @@ def analyze_bti():
             response_format={"type": "json_object"}
         )
 
-        data = json.loads(response.choices[0].message.content)
+        raw_data = json.loads(response.choices[0].message.content)
 
-        if "rooms" in data:
-            raw_sum = sum(float(r.get('area', 0)) for r in data['rooms'])
-            ratio = total_area_param / raw_sum if (total_area_param and raw_sum > 0) else 1
+        if "error" in raw_data:
+            return jsonify(raw_data), 200
 
-            for room in data['rooms']:
-                # Исправляем название если мусор
-                if not is_valid_name(room.get('name', '')):
-                    room['name'] = 'помещение'
-                # Применяем мат. модель к площади
-                room['area'] = round(float(room['area']) * ratio, 2)
+        rooms = raw_data.get("rooms", [])
 
-            if total_area_param:
-                data['total_area_calculated'] = total_area_param
-                data['scaling_factor'] = round(ratio, 4)
+        current_sum = sum(float(r.get('area', 0)) for r in rooms)
+        ratio = total_area_param / current_sum if (total_area_param and current_sum > 0) else 1
 
-        # Планирование точек съемки
-        raw_step2 = step_2_photo_planning(json.dumps({"rooms": data.get("rooms", [])}))
-        data["analysis"] = json.loads(raw_step2)
+        final_rooms = []
+        for r in rooms:
+            room_id = str(r.get('id', ''))
+            valid_name = clean_room_name(r.get('name', ''), room_id)
+            calculated_area = round(float(r.get('area', 0)) * ratio, 2)
+            final_rooms.append({"id": room_id, "name": valid_name, "area": calculated_area})
 
-        return jsonify(data), 200
+        output = {"rooms": final_rooms}
+
+        if total_area_param:
+            output["total_area_calculated"] = total_area_param
+            output["scaling_factor"] = round(ratio, 4)
+
+        return jsonify(output), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Internal error: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
