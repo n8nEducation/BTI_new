@@ -1536,6 +1536,16 @@ def step_2_photo_planning(ocr_json):
     return res.json()['choices'][0]['message']['content']
 
 
+def clean_room_name(name, room_id):
+    if not name:
+        return f"Помещение {room_id}"
+    cleaned = re.sub(r'[\x00-\x1f\x7f-\x9f\xad]', '', name)
+    cleaned = cleaned.replace('\u0000', '').strip()
+    if len(cleaned) < 2 or cleaned.lower().startswith('u000'):
+        return f"Помещение {room_id}"
+    return cleaned
+
+
 def encode_image(image_file):
     return base64.b64encode(image_file.read()).decode('utf-8')
 
@@ -1567,6 +1577,11 @@ def analyze_bti():
 4. Если видишь дробь типа 1/64.1, то 1 - это номер помещения, а 64.1 - площадь.
 5. Названия комнат (name) пиши по-русски (например, "Жилая", "Кухня", "Санузел"). Если название не указано, пиши "Помещение [номер]".
 
+ИНСТРУКЦИЯ ДЛЯ ПОЛЯ NAME:
+1. Если на плане РЯДОМ с площадью не написано название (например, "Кухня"), НЕ ПЫТАЙСЯ его угадать.
+2. В этом случае строго возвращай название в формате: "Помещение [ID]".
+3. Исключи любые спецсимволы, нулевые байты (\u0000) или иероглифы. Только кириллица или латиница.
+
 Верни JSON:
 {"is_bti": true, "total_area": float, "rooms": [{"id": "str", "name": "str", "area": float}]}
 """
@@ -1597,12 +1612,9 @@ def analyze_bti():
         rooms = ai_data.get("rooms", [])
         ai_data["rooms"] = [r for r in rooms if r.get("area") != total_on_plan]
 
-        # Чистим названия комнат от мусора и непечатных символов
+        # Чистим названия комнат
         for room in ai_data["rooms"]:
-            if isinstance(room.get("name"), str):
-                room["name"] = re.sub(r'[^\w\s\d.-]', '', room["name"].replace('\xa0', ' ')).strip()
-                if not room["name"]:
-                    room["name"] = f"Помещение {room.get('id')}"
+            room["name"] = clean_room_name(room.get("name"), room.get("id"))
 
         # 5. Математическая модель + планирование точек съемки
         analysis_result = {
