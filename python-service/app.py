@@ -1,5 +1,6 @@
 from flask import Flask, request, send_file, jsonify
 import requests
+from openai import OpenAI
 from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw, ImageFont
 import os
@@ -19,6 +20,7 @@ app = Flask(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 VALID_TOKEN = os.getenv("BTI_SERVICE_TOKEN", "bti_secure_token_2026")
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 
 
@@ -1534,81 +1536,87 @@ def step_2_photo_planning(ocr_json):
     return res.json()['choices'][0]['message']['content']
 
 
-@app.route('/analyze-bti', methods=['POST'])
-def bti_endpoint():
-    # 1. Проверка токена
-    if request.args.get('token', '').strip() != VALID_TOKEN:
-        return jsonify({"error": "Unauthorized"}), 401
+def encode_image(image_file):
+    return base64.b64encode(image_file.read()).decode('utf-8')
 
-    # 2. Обработка входной площади
-    raw_area = request.args.get('total_area', '')
-    provided_area = None
-    if raw_area and str(raw_area).lower().strip() not in ['none', 'null', 'undefined', '']:
-        try:
-            provided_area = float(str(raw_area).replace(',', '.'))
-        except Exception:
-            provided_area = None
+
+@app.route('/analyze-bti', methods=['POST'])
+def analyze_bti():
+    # 1. Проверяем наличие файла в теле запроса
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part in the request"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    # 2. Получаем query-параметр total_area (необязательный)
+    provided_area = request.args.get('total_area', type=float)
 
     try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
+        base64_image = encode_image(file)
 
-        file = request.files['file']
-        image_data = file.read()
-        base64_image = base64.b64encode(image_data).decode('utf-8')
+        # 3. Запрос к gpt-4o-mini
+        prompt = """
+        Анализируй это изображение.
+        1. Определи, является ли это планом БТИ, экспликацией или чертежом помещения.
+        2. Если это НЕ план помещения (например, фото животного, еды или просто текст), верни JSON: {"error": "not_a_bti", "message": "На фото не план БТИ"}.
+        3. Если это план БТИ:
+           - Извлеки общую площадь (total_area).
+           - Извлеки список всех помещений с их площадями.
+           - Верни JSON в формате: {"is_bti": true, "total_area": float, "rooms": {"название": площадь_float}}
+        """
 
-        # ШАГ 1: Распознавание плана (один вызов GPT)
-        prompt = (
-            "Анализируй изображение. Это план БТИ (технический паспорт квартиры)?\n"
-            "Если нет — верни JSON: {\"is_bti\": false, \"error\": \"На фото не план БТИ\"}.\n"
-            "Если да — извлеки все площади комнат и общую площадь, если она указана текстом.\n"
-            "Верни JSON: {\"is_bti\": true, \"total_area\": float_or_null, \"rooms\": {\"название\": площадь_float}}"
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                ]
+            }],
+            response_format={"type": "json_object"}
         )
 
-        headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [{"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-            ]}],
-            "response_format": {"type": "json_object"}
+        ai_data = json.loads(response.choices[0].message.content)
+
+        # 4. Обработка случая "Не БТИ"
+        if "error" in ai_data:
+            return jsonify({
+                "status": "error",
+                "error": ai_data["message"]
+            }), 200
+
+        # 5. Математическая модель + планирование точек съемки
+        analysis_result = {
+            "status": "success",
+            "data": ai_data,
+            "math_check": None
         }
-        res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-        result = json.loads(res.json()['choices'][0]['message']['content'])
-
-        if not result.get('is_bti'):
-            return jsonify({"status": "error", "message": result.get('error')}), 200
-
-        # ШАГ 2: Математическая верификация
-        math_status = None
-        extracted_total = result.get('total_area')
-        rooms_dict = result.get('rooms', {})
 
         if provided_area is not None:
-            sum_rooms = sum(rooms_dict.values())
-            if abs(sum_rooms - provided_area) < 0.1:
-                math_status = "Match"
-            elif sum_rooms > provided_area:
-                math_status = f"Warning: Sum of rooms ({round(sum_rooms, 2)}) exceeds provided area ({provided_area})"
-            else:
-                math_status = "Validated with margins"
+            rooms_sum = sum(ai_data.get("rooms", {}).values())
+            diff = abs(rooms_sum - provided_area)
+            is_valid = diff < (provided_area * 0.05)  # погрешность 5%
 
-        # ШАГ 3: Планирование точек съемки
+            analysis_result["math_check"] = {
+                "provided_area": provided_area,
+                "calculated_sum": round(rooms_sum, 2),
+                "is_consistent": is_valid,
+                "difference": round(diff, 2)
+            }
+
+        # Планирование точек съемки
+        rooms_dict = ai_data.get("rooms", {})
         rooms_list = [
             {"id": str(i + 1), "name": name, "area": area}
             for i, (name, area) in enumerate(rooms_dict.items())
         ]
         raw_step2 = step_2_photo_planning(json.dumps({"rooms": rooms_list}))
-        final_data = json.loads(raw_step2)
+        analysis_result["analysis"] = json.loads(raw_step2)
 
-        return jsonify({
-            "status": "success",
-            "is_bti": True,
-            "total_area_found": extracted_total,
-            "analysis": final_data,
-            "math_validation": math_status
-        }), 200
+        return jsonify(analysis_result), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
