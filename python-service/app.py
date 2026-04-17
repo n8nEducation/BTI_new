@@ -1552,94 +1552,65 @@ def encode_image(image_file):
 
 @app.route('/analyze-bti', methods=['POST'])
 def analyze_bti():
-    # 1. Проверяем наличие файла в теле запроса
+    # 1. Получаем файл и параметры
     if 'file' not in request.files:
-        return jsonify({"error": "No file part in the request"}), 400
+        return jsonify({"error": "No file uploaded"}), 400
 
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
+    total_area_param = request.args.get('total_area', type=float)
 
-    # 2. Получаем query-параметр total_area (необязательный)
-    provided_area = request.args.get('total_area', type=float)
+    base64_image = encode_image(file)
+
+    # 2. Формируем промпт для gpt-4o-mini
+    system_prompt = (
+        "Ты — эксперт по анализу планов БТИ. Твоя задача: проанализировать изображение.\n"
+        "1. Если на изображении НЕ план помещения или НЕ документ БТИ, верни JSON: {\"error\": \"На фото не БТИ\"}.\n"
+        "2. Если это план БТИ, извлеки данные по каждому помещению.\n"
+        "Правила именования:\n"
+        "- Используй строго название с плана (например, 'Гостиная', 'Кухня').\n"
+        "- Если названия на плане нет, пиши 'помещение'.\n"
+        "- ID — это номер помещения, указанный на плане внутри или рядом с ним.\n"
+        "Формат ответа: JSON объект с ключом 'rooms' (список объектов {id, name, area})."
+    )
 
     try:
-        base64_image = encode_image(file)
-
-        # 3. Запрос к gpt-4o-mini
-        prompt = """
-Анализируй план БТИ. Твоя задача — извлечь ТОЛЬКО площади помещений.
-
-Инструкции:
-1. Ищи номера помещений (обычно в кружке или над чертой) и площадь под ними.
-2. НЕ ПУТАЙ линейные размеры (длинные линии вдоль стен, например 10.74, 3.20) с площадями.
-3. Общая площадь на таких планах обычно указана большой цифрой в центре или в экспликации (например, 64.1).
-4. Если видишь дробь типа 1/64.1, то 1 - это номер помещения, а 64.1 - площадь.
-5. Названия комнат (name) пиши по-русски (например, "Жилая", "Кухня", "Санузел"). Если название не указано, пиши "Помещение [номер]".
-
-ИНСТРУКЦИЯ ДЛЯ ПОЛЯ NAME:
-1. Если на плане РЯДОМ с площадью не написано название (например, "Кухня"), НЕ ПЫТАЙСЯ его угадать.
-2. В этом случае строго возвращай название в формате: "Помещение [ID]".
-3. Исключи любые спецсимволы, нулевые байты (\u0000) или иероглифы. Только кириллица или латиница.
-
-Верни JSON:
-{"is_bti": true, "total_area": float, "rooms": [{"id": "str", "name": "str", "area": float}]}
-"""
-
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": prompt},
+                    {"type": "text", "text": system_prompt},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                 ]
             }],
             response_format={"type": "json_object"}
         )
 
-        ai_data = json.loads(response.choices[0].message.content)
+        data = json.loads(response.choices[0].message.content)
 
-        # 4. Обработка случая "Не БТИ"
-        if "error" in ai_data:
-            return jsonify({
-                "status": "error",
-                "error": ai_data["message"]
-            }), 200
-
-        # Фильтруем комнату, чья площадь совпадает с total_area (дубль общей площади)
-        total_on_plan = ai_data.get("total_area", 0)
-        rooms = ai_data.get("rooms", [])
-        ai_data["rooms"] = [r for r in rooms if r.get("area") != total_on_plan]
+        # 3. Обработка ошибки "не БТИ"
+        if "error" in data:
+            return jsonify(data), 200
 
         # Чистим названия комнат
-        for room in ai_data["rooms"]:
+        for room in data.get("rooms", []):
             room["name"] = clean_room_name(room.get("name"), room.get("id"))
 
-        # 5. Математическая модель + планирование точек съемки
-        analysis_result = {
-            "status": "success",
-            "data": ai_data,
-            "math_check": None
-        }
+        # 4. Математическая модель: пропорциональное перераспределение площади
+        if total_area_param and "rooms" in data:
+            current_sum = sum(float(room.get('area', 0)) for room in data['rooms'])
+            if current_sum > 0:
+                ratio = total_area_param / current_sum
+                for room in data['rooms']:
+                    room['area'] = round(float(room['area']) * ratio, 2)
+                data['total_area_calculated'] = total_area_param
+                data['scaling_factor'] = round(ratio, 4)
 
-        if provided_area is not None:
-            rooms_sum = sum(r.get("area", 0) for r in ai_data.get("rooms", []))
-            diff = abs(rooms_sum - provided_area)
-            is_valid = diff < (provided_area * 0.05)  # погрешность 5%
+        # 5. Планирование точек съемки
+        raw_step2 = step_2_photo_planning(json.dumps({"rooms": data.get("rooms", [])}))
+        data["analysis"] = json.loads(raw_step2)
 
-            analysis_result["math_check"] = {
-                "provided_area": provided_area,
-                "calculated_sum": round(rooms_sum, 2),
-                "is_consistent": is_valid,
-                "difference": round(diff, 2)
-            }
-
-        # Планирование точек съемки
-        raw_step2 = step_2_photo_planning(json.dumps({"rooms": ai_data.get("rooms", [])}))
-        analysis_result["analysis"] = json.loads(raw_step2)
-
-        return jsonify(analysis_result), 200
+        return jsonify(data), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
