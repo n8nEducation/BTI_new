@@ -1592,13 +1592,17 @@ def analyze_bti():
                 "error": ai_data["message"]
             }), 200
 
-        # Чистим названия комнат
-        if "rooms" in ai_data:
-            for room in ai_data["rooms"]:
-                if isinstance(room.get("name"), str):
-                    room["name"] = room["name"].replace('\xa0', ' ').strip()
-                    if not room["name"]:
-                        room["name"] = f"Помещение {room.get('id')}"
+        # Фильтруем комнату, чья площадь совпадает с total_area (дубль общей площади)
+        total_on_plan = ai_data.get("total_area", 0)
+        rooms = ai_data.get("rooms", [])
+        ai_data["rooms"] = [r for r in rooms if r.get("area") != total_on_plan]
+
+        # Чистим названия комнат от мусора и непечатных символов
+        for room in ai_data["rooms"]:
+            if isinstance(room.get("name"), str):
+                room["name"] = re.sub(r'[^\w\s\d.-]', '', room["name"].replace('\xa0', ' ')).strip()
+                if not room["name"]:
+                    room["name"] = f"Помещение {room.get('id')}"
 
         # 5. Математическая модель + планирование точек съемки
         analysis_result = {
