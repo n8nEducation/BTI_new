@@ -11,17 +11,21 @@ import cv2
 import numpy as np
 import uuid
 import re
+import hashlib
 import base64
 import time
 from datetime import datetime
 from io import BytesIO
+from supabase import create_client, Client
 
 app = Flask(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 VALID_TOKEN = os.getenv("BTI_SERVICE_TOKEN", "bti_secure_token_2026")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 def region_to_polygon(region, width, height):
@@ -1576,54 +1580,113 @@ SYSTEM_PROMPT = """
 """
 
 
+def get_image_hash(file_storage):
+    """Создает уникальный MD5 хеш файла для поиска в БД"""
+    file_content = file_storage.read()
+    file_storage.seek(0)  # Сбрасываем указатель файла назад
+    return hashlib.md5(file_content).hexdigest()
+
+def encode_image(file_storage):
+    """Кодирует изображение в Base64 для передачи в GPT"""
+    content = file_storage.read()
+    file_storage.seek(0)
+    return base64.b64encode(content).decode('utf-8')
+
+def calculate_math(data, total_area_param):
+    """Добавляет математический анализ площадей к результату"""
+    if not data.get("rooms"):
+        return data
+        
+    sum_rooms_area = sum(room.get('area', 0) for room in data.get('rooms', []) if room.get('area'))
+    data['math_analysis'] = {
+        "input_total_area": total_area_param,
+        "calculated_sum": round(sum_rooms_area, 2),
+        "diff": round(total_area_param - sum_rooms_area, 2),
+        "is_match": abs(total_area_param - sum_rooms_area) < 0.1
+    }
+    return data
+
+# --- ЭНДПОИНТ ---
+
 @app.route('/analyze-bti', methods=['POST'])
 def analyze_bti():
-    # 1. Получаем файл из тела запроса
+    # 1. Проверка файла
     if 'file' not in request.files:
         return jsonify({"error": True, "message": "Файл не передан"}), 400
 
     file = request.files['file']
-
-    # 2. Получаем площадь из query-параметров (необязательно)
     total_area_param = request.args.get('total_area', type=float)
 
-    # Кодируем изображение
-    base_64_image = encode_image(file)
+    try:
+        # 2. Проверка в БД через хеш
+        photo_hash = get_image_hash(file)
+        
+        # Ищем запись в основной таблице
+        existing_record = supabase.table("bti_knowledge_base") \
+            .select("id, is_bti") \
+            .eq("photo_hash", photo_hash) \
+            .execute()
 
-    # 3. Формируем запрос к GPT-4o-mini
-    prompt = """
-    Проанализируй план БТИ. 
-    1. Если на фото НЕ план БТИ, верни JSON: {"error": true, "message": "На фото не БТИ"}.
-    
-    2. ПРАВИЛА ИМЕНОВАНИЯ (name):
-       - Найди текст названия на самом плане (например, "Кухня", "Жилая"). 
-       - Если текстового названия на плане НЕТ (только цифра/id), запиши название как: "помещение [id]".
-       - В конце любого названия ОБЯЗАТЕЛЬНО добавь в скобках площадь, которую ты видишь на плане для этого помещения.
-       Примеры: "Кухня (10.5)", "помещение 3 (4.2)", "Жилая комната (18.0)".
-    
-    3. ТОЧКИ СЪЕМКИ (camera_points):
-       - Используй только архитектурные ориентиры (углы, проемы, окна). МЕБЕЛЬ ЗАПРЕЩЕНА.
-       - Минимум 2 фото на помещение. Если форма сложная (Г-образная, выступы) — 3-4 фото.
+        if existing_record.data:
+            bti_id = existing_record.data[0]['id']
+            is_bti = existing_record.data[0]['is_bti']
 
-    Верни JSON:
-    {
-      "error": false,
-      "is_bti": true,
-      "rooms": [
+            if not is_bti:
+                return jsonify({"error": True, "message": "На фото не БТИ (уже проверено)"})
+
+            # Если это БТИ, тянем данные комнат
+            rooms_data = supabase.table("bti_rooms") \
+                .select("room_details_json") \
+                .eq("bti_id", bti_id) \
+                .execute()
+
+            if rooms_data.data:
+                result_data = rooms_data.data[0]['room_details_json']
+                # Если в базе лежал старый формат без "error", добавим его
+                if "error" not in result_data:
+                    result_data["error"] = False
+                
+                # Математика для данных из БД
+                if total_area_param is not None:
+                    result_data = calculate_math(result_data, total_area_param)
+                
+                return jsonify(result_data)
+
+        # 3. Если в базе ничего не нашли — идем в GPT-4o-mini
+        base_64_image = encode_image(file)
+
+        prompt = """
+        Проанализируй план БТИ. 
+        1. Если на фото НЕ план БТИ, верни JSON: {"error": true, "message": "На фото не БТИ"}.
+        
+        2. ПРАВИЛА ИМЕНОВАНИЯ (name):
+           - Найди текст названия на самом плане (например, "Кухня", "Жилая"). 
+           - Если названия НЕТ (только цифра/id), пиши: "помещение [id]".
+           - В конце любого названия ОБЯЗАТЕЛЬНО добавь в скобках площадь из плана.
+           Примеры: "Кухня (10.5)", "помещение 3 (4.2)".
+        
+        3. ТОЧКИ СЪЕМКИ (camera_points):
+           - Используй только углы, проемы, окна. МЕБЕЛЬ ЗАПРЕЩЕНА.
+           - Минимум 2 точки на помещение.
+
+        Верни JSON:
         {
-          "id": "3",
-          "name": "помещение 3 (4.2)",
-          "area": 4.2,
-          "camera_points": [
-            {"point_id": 1, "location": "У дверного проема", "view": "Стык капитальной стены и перегородки"},
-            {"point_id": 2, "location": "Угол у окна", "view": "Весь периметр помещения"}
+          "error": false,
+          "is_bti": true,
+          "rooms": [
+            {
+              "id": "3",
+              "name": "помещение 3 (4.2)",
+              "area": 4.2,
+              "camera_points": [
+                {"point_id": 1, "location": "У дверного проема", "view": "Стык стен"},
+                {"point_id": 2, "location": "У окна", "view": "Весь периметр"}
+              ]
+            }
           ]
         }
-      ]
-    }
-    """
+        """
 
-    try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -1641,19 +1704,11 @@ def analyze_bti():
             response_format={"type": "json_object"}
         )
 
-        # Превращаем ответ GPT в Python dict
-        result = response.choices[0].message.content
-        data = json.loads(result)
+        data = json.loads(response.choices[0].message.content)
 
-        # 4. Математическая проверка, если передана общая площадь
+        # Математика для данных от GPT
         if not data.get("error") and total_area_param is not None:
-            sum_rooms_area = sum(room.get('area', 0) for room in data.get('rooms', []))
-            data['math_analysis'] = {
-                "input_total_area": total_area_param,
-                "calculated_sum": round(sum_rooms_area, 2),
-                "diff": round(total_area_param - sum_rooms_area, 2),
-                "is_match": abs(total_area_param - sum_rooms_area) < 0.1
-            }
+            data = calculate_math(data, total_area_param)
 
         return jsonify(data)
 
