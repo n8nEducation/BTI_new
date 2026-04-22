@@ -1652,7 +1652,71 @@ def analyze_bti():
                     result_data = calculate_math(result_data, total_area_param)
                     result_data["plan_description"] = build_plan_description(result_data)
                     return jsonify(result_data)
-                # Кэш устарел — продолжаем в GPT
+
+                # Кэш есть, но без camera_points — добавляем id к комнатам и генерируем только camera_points
+                if rooms_list:
+                    base_64_image = encode_image(file)
+                    for i, room in enumerate(rooms_list):
+                        if "id" not in room:
+                            room["id"] = i + 1
+
+                    rooms_for_prompt = [
+                        {"id": r["id"], "name": r.get("name", f"Помещение {r['id']}"), "area": r.get("area")}
+                        for r in rooms_list
+                    ]
+
+                    cp_system = """Ты — специалист по расстановке точек съёмки на планах БТИ.
+Тебе дан план и список помещений с известными именами и площадями.
+Расставь точки съёмки для каждого помещения, используя изображение плана для определения координат.
+
+ПРАВИЛА:
+- Минимум 2, максимум 4 точки на помещение. Г-образные — 3-4 точки.
+- location: позиция фотографа относительно объектов ("Справа от окна", "В дверном проеме").
+- view: что конкретно должно попасть в кадр.
+- x_percent/y_percent: координаты ФОТОГРАФА на плане (0.0=левый/верхний, 1.0=правый/нижний).
+- Нет окна в помещении — окно не упоминать.
+Отвечай строго в JSON."""
+
+                    cp_user = f"""Расставь точки съёмки для этих помещений плана БТИ:
+
+{json.dumps(rooms_for_prompt, ensure_ascii=False, indent=2)}
+
+Верни JSON:
+{{
+  "rooms": [
+    {{
+      "id": 1,
+      "camera_points": [
+        {{"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60}}
+      ]
+    }}
+  ]
+}}"""
+
+                    cp_response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": cp_system},
+                            {"role": "user", "content": [
+                                {"type": "text", "text": cp_user},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}}
+                            ]}
+                        ],
+                        response_format={"type": "json_object"}
+                    )
+                    cp_result = json.loads(cp_response.choices[0].message.content)
+                    cp_by_id = {r["id"]: r.get("camera_points", []) for r in cp_result.get("rooms", [])}
+
+                    for room in rooms_list:
+                        room["camera_points"] = cp_by_id.get(room["id"], [])
+
+                    result_data["rooms"] = rooms_list
+                    result_data["error"] = False
+                    result_data["is_bti"] = True
+                    result_data.pop("is_plan", None)
+                    result_data = calculate_math(result_data, total_area_param)
+                    result_data["plan_description"] = build_plan_description(result_data)
+                    return jsonify(result_data)
 
         # 3. Если в базе нет — идем в GPT
         base_64_image = encode_image(file)
