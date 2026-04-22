@@ -1,6 +1,7 @@
 from flask import Flask, request, send_file, jsonify
 import requests
 from openai import OpenAI
+from functools import lru_cache
 from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw, ImageFont
 import os
@@ -1556,30 +1557,6 @@ def is_valid_name(name):
     return len(clean_name) >= 3
 
 
-def encode_image(file_storage):
-    """Преобразует файл из Flask в base64 стринг."""
-    return base64.b64encode(file_storage.read()).decode('utf-8')
-
-
-SYSTEM_PROMPT = """
-Ты — профессиональный анализатор планов БТИ. Твоя задача — извлечь данные из изображения.
-1. Сначала проверь, является ли изображение планом БТИ (чертежом помещения). Если нет — верни JSON {"error": "true", "message": "На фото не план БТИ"}.
-2. Если это план БТИ, составь список всех помещений.
-3. Правила для названий: бери строго текст с плана. Если текста нет, пиши 'Помещение'.
-4. ID: бери номер помещения в кружочке или рядом с названием.
-5. Площадь: извлекай числовое значение из чертежа.
-
-Выходной формат строго JSON:
-{
-  "is_bti": true,
-  "rooms": [
-    {"id": "1", "name": "Кухня", "area": 9.0},
-    {"id": "2", "name": "Помещение", "area": 5.0}
-  ]
-}
-"""
-
-
 def get_image_hash(file_storage):
     """Создает уникальный MD5 хеш файла для поиска в БД"""
     file_content = file_storage.read()
@@ -1662,89 +1639,82 @@ def analyze_bti():
 
             # Ищем комнаты
             rooms_resp = supabase.table("bti_rooms").select("room_details_json").eq("bti_id", bti_id).execute()
-            
+
             if rooms_resp.data and len(rooms_resp.data) > 0:
                 raw_json = rooms_resp.data[0]['room_details_json']
-                
-                # Десериализация, если в БД лежит строка
                 result_data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
-                
-                result_data["error"] = False
-                result_data = calculate_math(result_data, total_area_param)
-                result_data["plan_description"] = build_plan_description(result_data)
-                return jsonify(result_data)
+
+                # Проверяем актуальность кэша: старые записи не имеют camera_points
+                rooms_list = result_data.get("rooms", [])
+                has_camera_points = rooms_list and rooms_list[0].get("camera_points")
+                if has_camera_points:
+                    result_data["error"] = False
+                    result_data = calculate_math(result_data, total_area_param)
+                    result_data["plan_description"] = build_plan_description(result_data)
+                    return jsonify(result_data)
+                # Кэш устарел — продолжаем в GPT
 
         # 3. Если в базе нет — идем в GPT
         base_64_image = encode_image(file)
 
-        prompt = """
-        Проанализируй план БТИ.
+        system_prompt = """Ты — профессиональный анализатор планов БТИ. Твоя задача — точно извлечь структурированные данные из изображения плана квартиры.
 
-        1. Если на фото НЕ план БТИ, верни JSON: {"error": true, "message": "На фото не БТИ"}.
+ПРАВИЛА ИДЕНТИФИКАЦИИ (id):
+- Каждому помещению присвой уникальный числовой id, начиная с 1.
+- Если на плане есть своя нумерация — используй её как id (число).
+- Если нумерации нет — нумеруй сам: 1, 2, 3...
 
-        2. ПРАВИЛА ИДЕНТИФИКАЦИИ (id):
-           - Каждому помещению присвой уникальный числовой id, начиная с 1.
-           - Если на плане есть своя нумерация — используй её как id (число).
-           - Если нумерации нет — нумеруй сам: 1, 2, 3...
+ПРАВИЛА ИМЕНОВАНИЯ И ПЛОЩАДИ (name, area):
+- Найди текст названия на самом плане (например, "Кухня", "Жилая").
+- Если названия НЕТ (только цифра/id), пиши: "помещение [id]".
+- В конце любого названия ОБЯЗАТЕЛЬНО добавь в скобках площадь из плана. Примеры: "Кухня (10.5)", "помещение 3 (4.2)".
+- Если площадь помещения на плане не читается — ставь area: null. НЕ угадывай и НЕ вычисляй площадь самостоятельно.
 
-        3. ПРАВИЛА ИМЕНОВАНИЯ И ПЛОЩАДИ (name, area):
-           - Найди текст названия на самом плане (например, "Кухня", "Жилая").
-           - Если названия НЕТ (только цифра/id), пиши: "помещение [id]".
-           - В конце любого названия ОБЯЗАТЕЛЬНО добавь в скобках площадь из плана.
-             Примеры: "Кухня (10.5)", "помещение 3 (4.2)".
-           - Если площадь помещения на плане не читается (размыта, перекрыта, отсутствует) —
-             ставь area: null. НЕ угадывай и НЕ вычисляй площадь самостоятельно.
+ОБЩАЯ ПЛОЩАДЬ КВАРТИРЫ (total_area):
+- Найди на плане итоговую площадь квартиры (штамп, подпись снизу, отдельная строка).
+- Если нашёл — запиши в поле total_area (число). Если не нашёл — total_area: null.
 
-        4. ОБЩАЯ ПЛОЩАДЬ КВАРТИРЫ (total_area):
-           - Найди на плане итоговую площадь квартиры — она обычно указана в штампе,
-             подписи внизу или отдельной строкой (например, "Общая площадь: 54.5 м²").
-           - Если нашёл — запиши в поле total_area (число).
-           - Если не нашёл — ставь total_area: null.
+ПРАВИЛА ГЕНЕРАЦИИ ТОЧЕК СЪЕМКИ (camera_points):
+- КОЛИЧЕСТВО: Минимум 2, максимум 4 точки на помещение.
+- СЛОЖНЫЕ ПОМЕЩЕНИЯ: Г-образная форма или более 4 углов — ОБЯЗАТЕЛЬНО 3-4 точки.
+- ЛОКАЦИЯ (location): Точно относительно объектов: "Справа от окна", "В дверном проеме", "В дальнем левом углу от входа".
+- ОБЪЕКТ СЪЕМКИ (view): Подробно, что в кадре.
+  * Санузел: "Крупный план смесителя, раковины и боковой части ванны".
+  * Кухня: "Кухонный фронт: плита, мойка и рабочая поверхность".
+  * Комната: "Панорамный вид от окна на межкомнатную дверь и радиатор".
+- КООРДИНАТЫ ФОТОГРАФА (x_percent, y_percent): позиция фотографа на плане.
+  * x_percent: 0.0 (левый край) до 1.0 (правый край)
+  * y_percent: 0.0 (верхний край) до 1.0 (нижний край)
+- ЗАПРЕТЫ: нет окна в помещении → окно не упоминать. Запрещены общие фразы типа "Стык стен".
 
-        5. ПРАВИЛА ГЕНЕРАЦИИ ТОЧЕК СЪЕМКИ (camera_points):
-           - КОЛИЧЕСТВО: Минимум 2, максимум 4 точки на помещение.
-           - СЛОЖНЫЕ ПОМЕЩЕНИЯ: Если помещение имеет Г-образную форму или более 4 углов — ОБЯЗАТЕЛЬНО 3-4 точки.
-           - ЛОКАЦИЯ (location): Пиши максимально точно относительно объектов.
-             Примеры: "Справа от окна", "В дверном проеме", "В дальнем левом углу от входа", "Напротив душевой кабины".
-           - ОБЪЕКТ СЪЕМКИ (view): Распиши подробно, что должно попасть в кадр.
-             * Для санузла: "Крупный план смесителя, раковины и боковой части ванны", "Общий вид помещения с захватом унитаза и полотенцесушителя".
-             * Для кухни: "Кухонный фронт: плита, мойка и рабочая поверхность", "Обеденная зона и вид на окно".
-             * Для комнат: "Панорамный вид от окна на межкомнатную дверь и радиатор отопления", "Угол комнаты с захватом двух смежных стен для оценки состояния отделки".
-           - КООРДИНАТЫ ФОТОГРАФА (x_percent, y_percent):
-             Укажи, где фотограф стоит на плане при съёмке этой точки.
-             * x_percent: от 0.0 (левый край плана) до 1.0 (правый край)
-             * y_percent: от 0.0 (верхний край плана) до 1.0 (нижний край)
-             Координаты — это позиция ФОТОГРАФА, а не объекта съёмки.
-           - ЗАПРЕТЫ:
-             1. Если в помещении нет окна (санузел/коридор) — упоминание окна ЗАПРЕЩЕНО.
-             2. Запрещено писать общие фразы типа "Стык стен". Пиши, что именно на этих стенах (дверь, розетки, оборудование).
+Отвечай строго в JSON. Если на фото НЕ план БТИ: {"error": true, "message": "На фото не БТИ"}."""
 
-        СТРУКТУРА ОТВЕТА (строго соблюдай все поля):
-        {
-          "error": false,
-          "is_bti": true,
-          "total_area": 54.5,
-          "rooms": [
-            {
-              "id": 1,
-              "name": "Кухня (10.5)",
-              "area": 10.5,
-              "camera_points": [
-                {"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60},
-                {"point_id": 2, "location": "...", "view": "...", "x_percent": 0.40, "y_percent": 0.55}
-              ]
-            }
-          ]
-        }
-        """
+        user_prompt = """Проанализируй этот план БТИ и верни JSON строго в формате:
+{
+  "error": false,
+  "is_bti": true,
+  "total_area": 54.5,
+  "rooms": [
+    {
+      "id": 1,
+      "name": "Кухня (10.5)",
+      "area": 10.5,
+      "camera_points": [
+        {"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60},
+        {"point_id": 2, "location": "...", "view": "...", "x_percent": 0.40, "y_percent": 0.55}
+      ]
+    }
+  ]
+}"""
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
+                {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": user_prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}}
                     ],
                 }
@@ -1765,6 +1735,13 @@ def analyze_bti():
         print(f"Error details: {str(e)}") 
         return jsonify({"error": True, "message": f"Ошибка сервера: {str(e)}"}), 500
     
+@lru_cache(maxsize=256)
+def _embed_query(query: str) -> tuple:
+    """Cached embedding for a query string. Returns a tuple (hashable for lru_cache)."""
+    resp = client.embeddings.create(model="text-embedding-3-small", input=query)
+    return tuple(resp.data[0].embedding)
+
+
 @app.route('/get-rag-chunks', methods=['POST'])
 def get_rag_chunks():
     """
@@ -1780,11 +1757,7 @@ def get_rag_chunks():
         query = data["query"]
         top_n = int(data.get("top_n", 7))
 
-        embedding_resp = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=query
-        )
-        query_vector = np.array(embedding_resp.data[0].embedding)
+        query_vector = np.array(_embed_query(query))
 
         chunks_resp = supabase.table("embeddings").select("id,content,embedding,metadata").execute()
         if not chunks_resp.data:
