@@ -1627,18 +1627,22 @@ def analyze_bti():
     try:
         # 1. Хешируем
         photo_hash = get_image_hash(file)
-        
+        print(f"[analyze-bti] hash={photo_hash}")
+
         # 2. Ищем в основной таблице
         existing = supabase.table("bti_knowledge_base").select("id, is_bti").eq("photo_hash", photo_hash).execute()
+        print(f"[analyze-bti] cache rows found: {len(existing.data) if existing.data else 0}")
 
         # Проверяем, что список не пустой
         if existing.data and len(existing.data) > 0:
             bti_id = existing.data[0]['id']
+            print(f"[analyze-bti] cache hit bti_id={bti_id} is_bti={existing.data[0]['is_bti']}")
             if not existing.data[0]['is_bti']:
                 return jsonify({"error": True, "message": "На фото не БТИ"})
 
             # Ищем комнаты
             rooms_resp = supabase.table("bti_rooms").select("room_details_json").eq("bti_id", bti_id).execute()
+            print(f"[analyze-bti] bti_rooms rows found: {len(rooms_resp.data) if rooms_resp.data else 0}")
 
             if rooms_resp.data and len(rooms_resp.data) > 0:
                 raw_json = rooms_resp.data[0]['room_details_json']
@@ -1647,6 +1651,7 @@ def analyze_bti():
                 # Проверяем актуальность кэша: старые записи не имеют camera_points
                 rooms_list = result_data.get("rooms", [])
                 has_camera_points = rooms_list and rooms_list[0].get("camera_points")
+                print(f"[analyze-bti] rooms in cache: {len(rooms_list)}, has_camera_points={bool(has_camera_points)}")
                 if has_camera_points:
                     result_data["error"] = False
                     effective_total = total_area_param or result_data.get("total_area")
