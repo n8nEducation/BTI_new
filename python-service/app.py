@@ -1594,10 +1594,16 @@ def encode_image(file_storage):
 
 def calculate_math(data, total_area_param):
     """Добавляет математический анализ площадей к результату"""
-    if not data.get("rooms"):
+    # Защита: если data пришла как строка, превращаем в словарь
+    if isinstance(data, str):
+        data = json.loads(data)
+        
+    if not data or not data.get("rooms"):
         return data
         
     sum_rooms_area = sum(room.get('area', 0) for room in data.get('rooms', []) if room.get('area'))
+    
+    # Считаем разницу только если передана площадь
     data['math_analysis'] = {
         "input_total_area": total_area_param,
         "calculated_sum": round(sum_rooms_area, 2),
@@ -1610,49 +1616,42 @@ def calculate_math(data, total_area_param):
 
 @app.route('/analyze-bti', methods=['POST'])
 def analyze_bti():
-    # 1. Проверка файла
     if 'file' not in request.files:
         return jsonify({"error": True, "message": "Файл не передан"}), 400
 
     file = request.files['file']
+    # Важно: если шлете через FormData в Postman, проверьте где лежит total_area
     total_area_param = request.args.get('total_area', type=float)
 
     try:
-        # 2. Проверка в БД через хеш
+        # 1. Хешируем
         photo_hash = get_image_hash(file)
         
-        # Ищем запись в основной таблице
-        existing_record = supabase.table("bti_knowledge_base") \
-            .select("id, is_bti") \
-            .eq("photo_hash", photo_hash) \
-            .execute()
+        # 2. Ищем в основной таблице
+        existing = supabase.table("bti_knowledge_base").select("id, is_bti").eq("photo_hash", photo_hash).execute()
 
-        if existing_record.data:
-            bti_id = existing_record.data[0]['id']
-            is_bti = existing_record.data[0]['is_bti']
+        # Проверяем, что список не пустой
+        if existing.data and len(existing.data) > 0:
+            bti_id = existing.data[0]['id']
+            if not existing.data[0]['is_bti']:
+                return jsonify({"error": True, "message": "На фото не БТИ"})
 
-            if not is_bti:
-                return jsonify({"error": True, "message": "На фото не БТИ (уже проверено)"})
-
-            # Если это БТИ, тянем данные комнат
-            rooms_data = supabase.table("bti_rooms") \
-                .select("room_details_json") \
-                .eq("bti_id", bti_id) \
-                .execute()
-
-            if rooms_data.data:
-                result_data = rooms_data.data[0]['room_details_json']
-                # Если в базе лежал старый формат без "error", добавим его
-                if "error" not in result_data:
-                    result_data["error"] = False
+            # Ищем комнаты
+            rooms_resp = supabase.table("bti_rooms").select("room_details_json").eq("bti_id", bti_id).execute()
+            
+            if rooms_resp.data and len(rooms_resp.data) > 0:
+                raw_json = rooms_resp.data[0]['room_details_json']
                 
-                # Математика для данных из БД
+                # Десериализация, если в БД лежит строка
+                result_data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+                
+                result_data["error"] = False
                 if total_area_param is not None:
                     result_data = calculate_math(result_data, total_area_param)
                 
                 return jsonify(result_data)
 
-        # 3. Если в базе ничего не нашли — идем в GPT-4o-mini
+        # 3. Если в базе нет — идем в GPT
         base_64_image = encode_image(file)
 
         prompt = """
@@ -1694,26 +1693,23 @@ def analyze_bti():
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}
-                        }
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}}
                     ],
                 }
             ],
             response_format={"type": "json_object"}
         )
 
-        data = json.loads(response.choices[0].message.content)
+        gpt_result = json.loads(response.choices[0].message.content)
 
-        # Математика для данных от GPT
-        if not data.get("error") and total_area_param is not None:
-            data = calculate_math(data, total_area_param)
+        if not gpt_result.get("error") and total_area_param is not None:
+            gpt_result = calculate_math(gpt_result, total_area_param)
 
-        return jsonify(data)
+        return jsonify(gpt_result)
 
     except Exception as e:
-        return jsonify({"error": True, "message": str(e)}), 500
-
+        # Это поможет вам увидеть реальную причину ошибки в логах сервера
+        print(f"Error details: {str(e)}") 
+        return jsonify({"error": True, "message": f"Ошибка сервера: {str(e)}"}), 500
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
