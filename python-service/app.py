@@ -1588,17 +1588,25 @@ def build_description_from_metadata(meta: dict) -> str:
     return " ".join(parts)
 
 
-def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bool) -> str:
+def save_plan_to_db(photo_hash: str, description: str, is_bti: bool,
+                    plan_metadata: dict = None, readability_score: int = None,
+                    rejection_reason: str = None) -> str:
     """Embeds description and upserts plan record in bti_knowledge_base. Returns the record id."""
     embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
     embedding = embedding_resp.data[0].embedding
-    supabase.table("bti_knowledge_base").upsert({
+    record = {
         "photo_hash": photo_hash,
-        "plan_url": plan_url,
         "description": description,
         "embedding": embedding,
         "is_bti": is_bti
-    }, on_conflict="photo_hash").execute()
+    }
+    if plan_metadata is not None:
+        record["plan_metadata"] = plan_metadata
+    if readability_score is not None:
+        record["readability_score"] = readability_score
+    if rejection_reason is not None:
+        record["rejection_reason"] = rejection_reason
+    supabase.table("bti_knowledge_base").upsert(record, on_conflict="photo_hash").execute()
     resp = supabase.table("bti_knowledge_base").select("id").eq("photo_hash", photo_hash).execute()
     if not resp.data:
         raise RuntimeError(f"could not fetch id for hash={photo_hash}")
@@ -1607,17 +1615,10 @@ def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bo
     return record_id
 
 
-def _extract_area_from_name(name: str) -> float | None:
-    """Extracts area value from room name like 'Помещение 1 (13.8 м²)'. Returns None if not found."""
-    import re
-    m = re.search(r'\(([\d.]+)\s*м²\)', name)
-    return float(m.group(1)) if m else None
-
-
 def _clean_room_name(name: str) -> str:
-    """Strips the area part from room name: 'Помещение 1 (13.8 м²)' → 'Помещение 1'."""
+    """Strips the area part from room name: 'Помещение 1 (18,5)' → 'Помещение 1'."""
     import re
-    return re.sub(r'\s*\([\d.]+\s*м²\)', '', name).strip()
+    return re.sub(r'\s*\([\d,.]+(?:\s*м²)?\)', '', name).strip()
 
 
 def _transform_rooms_for_storage(rooms: list) -> dict:
@@ -1627,7 +1628,7 @@ def _transform_rooms_for_storage(rooms: list) -> dict:
         name = r.get("name", "")
         transformed.append({
             "name": _clean_room_name(name),
-            "area": _extract_area_from_name(name)
+            "area": r.get("area")
         })
     return {"rooms": transformed, "is_plan": True, "total_area": None}
 
@@ -1931,9 +1932,10 @@ def save_plan():
     Called after user confirms the analysis is correct.
     Input:  JSON {
         "photo_hash": "...",
-        "plan_url": "...",
         "plan_metadata": {...},
-        "rooms": [{"id": "room_1", "name": "Помещение 1 (13.8 м²)", "type": "...", ...}]
+        "readability_score": 50,
+        "rejection_reason": "...",
+        "rooms": [{"id": 1, "name": "Помещение 1 (18,5)", "area": 18.5, ...}]
     }
     Output: JSON { "ok": true, "bti_id": "...", "description": "..." } or { "error": "..." }
     """
@@ -1943,9 +1945,10 @@ def save_plan():
             return jsonify({"error": "JSON body required"}), 400
 
         photo_hash = data.get("photo_hash", "").strip()
-        plan_url = data.get("plan_url", "").strip()
         plan_meta = data.get("plan_metadata", {})
         rooms = data.get("rooms", [])
+        readability_score = data.get("readability_score")
+        rejection_reason = data.get("rejection_reason")
 
         if not photo_hash:
             return jsonify({"error": "photo_hash is required"}), 400
@@ -1953,7 +1956,12 @@ def save_plan():
             return jsonify({"error": "plan_metadata is required"}), 400
 
         description = build_description_from_metadata(plan_meta)
-        bti_id = save_plan_to_db(photo_hash, plan_url, description, True)
+        bti_id = save_plan_to_db(
+            photo_hash, description, True,
+            plan_metadata=plan_meta,
+            readability_score=readability_score,
+            rejection_reason=rejection_reason
+        )
 
         if bti_id and rooms:
             save_rooms_to_db(bti_id, rooms)
