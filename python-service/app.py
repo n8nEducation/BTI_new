@@ -1588,6 +1588,35 @@ def build_description_from_metadata(meta: dict) -> str:
     return " ".join(parts)
 
 
+def generate_readability_assessment(plan_meta: dict) -> tuple:
+    """Generates readability_score (0-100) and rejection_reason from plan_metadata using GPT."""
+    prompt = f"""На основе метаданных плана БТИ оцени читаемость плана для автоматического анализа.
+
+Метаданные:
+{json.dumps(plan_meta, ensure_ascii=False, indent=2)}
+
+Верни JSON:
+{{
+  "readability_score": <целое число 0-100>,
+  "rejection_reason": "<одно предложение о главной проблеме читаемости, или null если проблем нет>"
+}}
+
+Шкала:
+- 80-100: план отлично читается, все данные чёткие
+- 60-79: план читается хорошо, незначительные помехи
+- 40-59: есть затруднения (цифры касаются линий, текст мелкий, план фото а не скан)
+- 20-39: многое не читается
+- 0-19: план практически нечитаем"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"}
+    )
+    result = json.loads(response.choices[0].message.content)
+    return result.get("readability_score"), result.get("rejection_reason")
+
+
 def save_plan_to_db(photo_hash: str, description: str, is_bti: bool,
                     plan_url: str = None, plan_metadata: dict = None,
                     readability_score: int = None, rejection_reason: str = None) -> str:
@@ -1950,8 +1979,6 @@ def save_plan():
         plan_url = data.get("plan_url", "").strip() or None
         plan_meta = data.get("plan_metadata", {})
         rooms = data.get("rooms", [])
-        readability_score = data.get("readability_score")
-        rejection_reason = data.get("rejection_reason")
 
         if not photo_hash:
             return jsonify({"error": "photo_hash is required"}), 400
@@ -1959,6 +1986,7 @@ def save_plan():
             return jsonify({"error": "plan_metadata is required"}), 400
 
         description = build_description_from_metadata(plan_meta)
+        readability_score, rejection_reason = generate_readability_assessment(plan_meta)
         bti_id = save_plan_to_db(
             photo_hash, description, True,
             plan_url=plan_url,
