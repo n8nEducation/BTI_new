@@ -1569,6 +1569,42 @@ def encode_image(file_storage):
     file_storage.seek(0)
     return base64.b64encode(content).decode('utf-8')
 
+def build_description_from_metadata(meta: dict) -> str:
+    """Converts plan_metadata dict to a readable text for bti_knowledge_base.description."""
+    parts = []
+    if meta.get("plan_type"):
+        parts.append(f"Тип: {meta['plan_type']}.")
+    if meta.get("areas_format"):
+        parts.append(f"Площади: {meta['areas_format']}.")
+    if meta.get("ids_format"):
+        parts.append(f"ID помещений: {meta['ids_format']}.")
+    if meta.get("names_format"):
+        parts.append(f"Названия: {meta['names_format']}.")
+    if meta.get("total_area_location"):
+        parts.append(f"Общая площадь: {meta['total_area_location']}.")
+    parts.append(f"Штамп: {'есть' if meta.get('stamp_present') else 'нет'}.")
+    if meta.get("reading_tips"):
+        parts.append(f"Совет: {meta['reading_tips']}")
+    return " ".join(parts)
+
+
+def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bool):
+    """Embeds description and upserts plan record in bti_knowledge_base."""
+    try:
+        embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
+        embedding = embedding_resp.data[0].embedding
+        supabase.table("bti_knowledge_base").upsert({
+            "photo_hash": photo_hash,
+            "plan_url": plan_url,
+            "description": description,
+            "embedding": embedding,
+            "is_bti": is_bti
+        }, on_conflict="photo_hash").execute()
+        print(f"[save_plan_to_db] saved hash={photo_hash}")
+    except Exception as e:
+        print(f"[save_plan_to_db] error: {e}")
+
+
 def build_plan_description(data):
     """Builds a human-readable text summary of the BTI plan for injection into GPT prompts."""
     if not data or not data.get("rooms"):
@@ -1763,6 +1799,15 @@ def analyze_bti():
   * y_percent: 0.0 (верхний край) до 1.0 (нижний край)
 - ЗАПРЕТЫ: нет окна в помещении → окно не упоминать. Запрещены общие фразы типа "Стык стен".
 
+ПЛАН-МЕТАДАТА (plan_metadata) — опиши формат данных именно на этом плане:
+- plan_type: "скан" | "фото" | "рукописный"
+- areas_format: как написаны площади (например: "цифра под чертой по центру", "число в кружочке", "просто число", "не указаны")
+- ids_format: как обозначены ID помещений (например: "число в кружочке", "не указаны")
+- names_format: как написаны названия (например: "текст внутри контура", "текст над площадью", "не указаны")
+- total_area_location: где указана общая площадь (например: "в штампе снизу справа", "отдельная строка снизу", "не найдена")
+- stamp_present: true если есть официальный штамп/печать организации, false если нет
+- reading_tips: 1-2 предложения — специфика именно этого плана, которая поможет при анализе похожих документов
+
 ПРОВЕРКА КАЧЕСТВА И ТИПА ИЗОБРАЖЕНИЯ — выполни ПЕРВОЙ:
 1. Это не план БТИ (фото комнаты, документ другого типа, случайное фото) →
    {"error": true, "message": "На фото не план БТИ"}
@@ -1779,6 +1824,15 @@ def analyze_bti():
   "error": false,
   "is_bti": true,
   "total_area": 54.5,
+  "plan_metadata": {
+    "plan_type": "скан",
+    "areas_format": "цифра под чертой по центру помещения",
+    "ids_format": "число в кружочке",
+    "names_format": "текст внутри контура",
+    "total_area_location": "в штампе снизу справа",
+    "stamp_present": true,
+    "reading_tips": "Площади записаны дробью — числитель над чертой является площадью помещения."
+  },
   "rooms": [
     {
       "id": 1,
@@ -1814,6 +1868,10 @@ def analyze_bti():
             effective_total = total_area_param or gpt_result.get("total_area")
             gpt_result = calculate_math(gpt_result, effective_total)
             gpt_result["plan_description"] = build_plan_description(gpt_result)
+            plan_meta = gpt_result.get("plan_metadata", {})
+            if plan_meta:
+                meta_description = build_description_from_metadata(plan_meta)
+                save_plan_to_db(photo_hash, plan_url, meta_description, True)
 
         return jsonify(gpt_result)
 
