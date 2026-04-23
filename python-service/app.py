@@ -1589,8 +1589,8 @@ def build_description_from_metadata(meta: dict) -> str:
 
 
 def save_plan_to_db(photo_hash: str, description: str, is_bti: bool,
-                    plan_metadata: dict = None, readability_score: int = None,
-                    rejection_reason: str = None) -> str:
+                    plan_url: str = None, plan_metadata: dict = None,
+                    readability_score: int = None, rejection_reason: str = None) -> str:
     """Embeds description and upserts plan record in bti_knowledge_base. Returns the record id."""
     embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
     embedding = embedding_resp.data[0].embedding
@@ -1600,6 +1600,8 @@ def save_plan_to_db(photo_hash: str, description: str, is_bti: bool,
         "embedding": embedding,
         "is_bti": is_bti
     }
+    if plan_url is not None:
+        record["plan_url"] = plan_url
     if plan_metadata is not None:
         record["plan_metadata"] = plan_metadata
     if readability_score is not None:
@@ -1945,6 +1947,7 @@ def save_plan():
             return jsonify({"error": "JSON body required"}), 400
 
         photo_hash = data.get("photo_hash", "").strip()
+        plan_url = data.get("plan_url", "").strip() or None
         plan_meta = data.get("plan_metadata", {})
         rooms = data.get("rooms", [])
         readability_score = data.get("readability_score")
@@ -1958,6 +1961,7 @@ def save_plan():
         description = build_description_from_metadata(plan_meta)
         bti_id = save_plan_to_db(
             photo_hash, description, True,
+            plan_url=plan_url,
             plan_metadata=plan_meta,
             readability_score=readability_score,
             rejection_reason=rejection_reason
