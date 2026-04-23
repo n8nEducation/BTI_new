@@ -1917,7 +1917,7 @@ def analyze_bti():
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
-            effective_total = total_area_param or gpt_result.get("total_area")
+            effective_total = total_area_param
             gpt_result = calculate_math(gpt_result, effective_total)
             gpt_result["plan_description"] = build_plan_description(gpt_result)
 
