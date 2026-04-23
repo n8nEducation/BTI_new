@@ -1588,21 +1588,62 @@ def build_description_from_metadata(meta: dict) -> str:
     return " ".join(parts)
 
 
-def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bool):
-    """Embeds description and upserts plan record in bti_knowledge_base."""
+def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bool) -> str | None:
+    """Embeds description and upserts plan record in bti_knowledge_base. Returns the record id."""
     try:
         embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
         embedding = embedding_resp.data[0].embedding
-        supabase.table("bti_knowledge_base").upsert({
+        resp = supabase.table("bti_knowledge_base").upsert({
             "photo_hash": photo_hash,
             "plan_url": plan_url,
             "description": description,
             "embedding": embedding,
             "is_bti": is_bti
         }, on_conflict="photo_hash").execute()
-        print(f"[save_plan_to_db] saved hash={photo_hash}")
+        record_id = resp.data[0]["id"] if resp.data else None
+        print(f"[save_plan_to_db] saved hash={photo_hash} id={record_id}")
+        return record_id
     except Exception as e:
         print(f"[save_plan_to_db] error: {e}")
+        return None
+
+
+def _extract_area_from_name(name: str) -> float | None:
+    """Extracts area value from room name like 'Помещение 1 (13.8 м²)'. Returns None if not found."""
+    import re
+    m = re.search(r'\(([\d.]+)\s*м²\)', name)
+    return float(m.group(1)) if m else None
+
+
+def _clean_room_name(name: str) -> str:
+    """Strips the area part from room name: 'Помещение 1 (13.8 м²)' → 'Помещение 1'."""
+    import re
+    return re.sub(r'\s*\([\d.]+\s*м²\)', '', name).strip()
+
+
+def _transform_rooms_for_storage(rooms: list) -> dict:
+    """Converts detected rooms array to bti_rooms storage format."""
+    transformed = []
+    for r in rooms:
+        name = r.get("name", "")
+        transformed.append({
+            "name": _clean_room_name(name),
+            "area": _extract_area_from_name(name)
+        })
+    return {"rooms": transformed, "is_plan": True, "total_area": None}
+
+
+def save_rooms_to_db(bti_id: str, rooms: list):
+    """Saves transformed rooms JSON to bti_rooms table linked to bti_knowledge_base by bti_id."""
+    try:
+        room_details = _transform_rooms_for_storage(rooms)
+        supabase.table("bti_rooms").insert({
+            "bti_id": bti_id,
+            "room_details_json": room_details
+        }).execute()
+        print(f"[save_rooms_to_db] saved {len(rooms)} rooms for bti_id={bti_id}")
+    except Exception as e:
+        print(f"[save_rooms_to_db] error: {e}")
 
 
 def build_plan_description(data):
@@ -1799,14 +1840,21 @@ def analyze_bti():
   * y_percent: 0.0 (верхний край) до 1.0 (нижний край)
 - ЗАПРЕТЫ: нет окна в помещении → окно не упоминать. Запрещены общие фразы типа "Стык стен".
 
-ПЛАН-МЕТАДАТА (plan_metadata) — опиши формат данных именно на этом плане:
+ПЛАН-МЕТАДАТА (plan_metadata) — описывай ТОЛЬКО то, что РЕАЛЬНО ВИДИШЬ на изображении. Не угадывай, не предполагай, не переносить паттерны с других планов.
 - plan_type: "скан" | "фото" | "рукописный"
-- areas_format: как написаны площади (например: "цифра под чертой по центру", "число в кружочке", "просто число", "не указаны")
-- ids_format: как обозначены ID помещений (например: "число в кружочке", "не указаны")
-- names_format: как написаны названия (например: "текст внутри контура", "текст над площадью", "не указаны")
-- total_area_location: где указана общая площадь (например: "в штампе снизу справа", "отдельная строка снизу", "не найдена")
-- stamp_present: true если есть официальный штамп/печать организации, false если нет
-- reading_tips: 1-2 предложения — специфика именно этого плана, которая поможет при анализе похожих документов
+- areas_format: как именно записаны площади — описывай буквально что видишь:
+  * "число с м² по центру" — если площадь написана как "18.5 м²" или "5,6 м²"
+  * "дробь: числитель/знаменатель" — ТОЛЬКО если реально видишь дробную черту между двумя числами внутри помещения
+  * "число без единиц" — если цифры без символа м²
+  * "не указаны" — если площади отсутствуют
+- ids_format: как обозначены номера помещений ("число в кружочке", "просто число", "не указаны")
+- names_format: как написаны текстовые названия помещений:
+  * "нет названий, только номера" — если текстовых имён нет совсем, только цифры
+  * "текст внутри контура" — ТОЛЬКО если есть слова типа "Кухня", "Жилая", "Коридор"
+  * "не указаны" — если ничего нет
+- total_area_location: где указана общая площадь. Пиши "не найдена" если не видишь её на текущем изображении — не предполагай наличие штампа за кадром.
+- stamp_present: true ТОЛЬКО если официальный штамп/печать организации виден прямо на изображении; false если не виден или план обрезан
+- reading_tips: 1-2 предложения — только реально наблюдаемые особенности этого плана. Не придумывай паттерны которых нет на изображении.
 
 ПРОВЕРКА КАЧЕСТВА И ТИПА ИЗОБРАЖЕНИЯ — выполни ПЕРВОЙ:
 1. Это не план БТИ (фото комнаты, документ другого типа, случайное фото) →
@@ -1879,10 +1927,15 @@ def analyze_bti():
 @app.route('/save-plan', methods=['POST'])
 def save_plan():
     """
-    Saves confirmed BTI plan analysis to bti_knowledge_base.
+    Saves confirmed BTI plan analysis to bti_knowledge_base and bti_rooms.
     Called after user confirms the analysis is correct.
-    Input:  JSON { "photo_hash": "...", "plan_url": "...", "plan_metadata": {...} }
-    Output: JSON { "ok": true } or { "error": "..." }
+    Input:  JSON {
+        "photo_hash": "...",
+        "plan_url": "...",
+        "plan_metadata": {...},
+        "rooms": [{"id": "room_1", "name": "Помещение 1 (13.8 м²)", "type": "...", ...}]
+    }
+    Output: JSON { "ok": true, "bti_id": "...", "description": "..." } or { "error": "..." }
     """
     try:
         data = request.get_json()
@@ -1892,6 +1945,7 @@ def save_plan():
         photo_hash = data.get("photo_hash", "").strip()
         plan_url = data.get("plan_url", "").strip()
         plan_meta = data.get("plan_metadata", {})
+        rooms = data.get("rooms", [])
 
         if not photo_hash:
             return jsonify({"error": "photo_hash is required"}), 400
@@ -1899,8 +1953,12 @@ def save_plan():
             return jsonify({"error": "plan_metadata is required"}), 400
 
         description = build_description_from_metadata(plan_meta)
-        save_plan_to_db(photo_hash, plan_url, description, True)
-        return jsonify({"ok": True, "description": description})
+        bti_id = save_plan_to_db(photo_hash, plan_url, description, True)
+
+        if bti_id and rooms:
+            save_rooms_to_db(bti_id, rooms)
+
+        return jsonify({"ok": True, "bti_id": bti_id, "description": description})
 
     except Exception as e:
         print(f"[save-plan] error: {e}")
