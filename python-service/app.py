@@ -1805,7 +1805,8 @@ def _check_image_quality(image_bytes: bytes) -> dict:
     mean_brightness = float(gray.mean())
     if mean_brightness < 30:
         return {"ok": False, "error": True, "message": "Фото слишком тёмное, план не читается"}
-    if mean_brightness > 240:
+    std_dev = float(gray.std())
+    if mean_brightness > 245 and std_dev < 20:
         return {"ok": False, "error": True, "message": "Фото засвечено, план не читается"}
 
     return {"ok": True}
@@ -1934,9 +1935,11 @@ def analyze_bti():
    {"error": true, "message": "Фото плохого качества, план не читается", "plan_metadata": {"plan_type": "фото", "areas_format": "не читается", "ids_format": "не читается", "names_format": "не читается", "total_area_location": "не найдена", "stamp_present": false, "reading_tips": "Качество изображения недостаточно для анализа."}}
 3. Виден только фрагмент плана (план обрезан, часть листа за кадром, угол листа) →
    {"error": true, "message": "На фото только фрагмент плана", "plan_metadata": {"plan_type": "скан", "areas_format": "не определено", "ids_format": "не определено", "names_format": "не определено", "total_area_location": "не найдена", "stamp_present": false, "reading_tips": "Виден только фрагмент плана."}}
-4. Структура плана видна, но цифры, площади или номера помещений не читаются (слишком мелкие, размытые, перекрыты, залиты чернилами) — извлечь данные невозможно →
-   {"error": true, "message": "Текст на плане не читается", "plan_metadata": null}
+4. Структура плана видна, но текст не читается уверенно: слишком мелкий шрифт (CAD/САПР планы с тонкими линиями), размытие, тени, низкое разрешение, цифры сливаются с линиями стен — ты вынужден угадывать, а не читать →
+   {"error": true, "message": "Текст на плане не читается — загрузите более чёткое изображение или скан", "plan_metadata": null}
 Только если изображение — полноценный читаемый план БТИ с читаемым текстом, продолжай анализ.
+
+ПРАВИЛО «НЕ УГАДЫВАЙ»: если ты не можешь однозначно прочитать текст (название помещения, цифру площади) — это ошибка типа 4, возвращай error. null для area допустим ТОЛЬКО если площадь явно не указана на плане. Если площадь на плане есть, но плохо видна — error типа 4.
 
 ОЦЕНКА ЧИТАЕМОСТИ (readability_score, rejection_reason) — заполняй для всех успешных планов:
 - readability_score: целое число 0-100, где 100 = идеально читаемый скан
@@ -1996,14 +1999,6 @@ def analyze_bti():
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
-            score = gpt_result.get("readability_score")
-            if score is not None and score < 90:
-                return jsonify({
-                    "error": True,
-                    "message": "Фото плохого качества, план не читается",
-                    "readability_score": score,
-                    "rejection_reason": gpt_result.get("rejection_reason")
-                })
             gpt_result["rooms"] = generate_camera_points(base_64_image, gpt_result.get("rooms", []))
             effective_total = total_area_param
             gpt_result = calculate_math(gpt_result, effective_total)
