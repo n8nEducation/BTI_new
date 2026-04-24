@@ -1758,6 +1758,41 @@ def generate_camera_points(base_64_image: str, rooms: list) -> list:
     return rooms
 
 
+# --- ПРОВЕРКА КАЧЕСТВА (без GPT) ---
+
+def _check_image_quality(image_bytes: bytes) -> dict:
+    """Fast OpenCV-based image quality check. No API calls.
+    Returns {"ok": True} or {"ok": False, "error": True, "message": "..."}.
+    Catches: too small, too blurry, too dark/overexposed.
+    Subtle issues (not a BTI plan, unreadable text) are handled by GPT's embedded check.
+    """
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if img is None:
+        return {"ok": False, "error": True, "message": "Не удалось открыть изображение"}
+
+    h, w = img.shape[:2]
+
+    if w < 300 or h < 300:
+        return {"ok": False, "error": True, "message": "Изображение слишком маленькое для анализа плана"}
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Blur: Laplacian variance — low value means blurry
+    blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+    if blur_score < 30:
+        return {"ok": False, "error": True, "message": "Фото слишком размытое, план не читается"}
+
+    # Brightness: mean pixel value
+    mean_brightness = float(gray.mean())
+    if mean_brightness < 30:
+        return {"ok": False, "error": True, "message": "Фото слишком тёмное, план не читается"}
+    if mean_brightness > 240:
+        return {"ok": False, "error": True, "message": "Фото засвечено, план не читается"}
+
+    return {"ok": True}
+
+
 # --- ЭНДПОИНТ ---
 
 @app.route('/analyze-bti', methods=['POST'])
@@ -1770,6 +1805,13 @@ def analyze_bti():
     plan_url = request.args.get('plan_url', '').strip()
 
     try:
+        # 0. Быстрая проверка качества без GPT
+        image_bytes = file.read()
+        file.seek(0)
+        quality = _check_image_quality(image_bytes)
+        if not quality["ok"]:
+            return jsonify(quality)
+
         # 1. Хешируем: если передан URL — хешируем его (стабильно), иначе — байты файла
         if plan_url:
             photo_hash = hashlib.md5(plan_url.encode()).hexdigest()
