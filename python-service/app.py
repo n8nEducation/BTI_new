@@ -1999,8 +1999,18 @@ def analyze_bti():
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
+            effective_total = total_area_param or gpt_result.get("total_area")
+            if effective_total:
+                rooms = gpt_result.get("rooms") or []
+                calculated_sum = sum(r.get("area") or 0 for r in rooms)
+                if calculated_sum < effective_total * 0.85:
+                    return jsonify({
+                        "error": True,
+                        "message": "План проанализирован не полностью — часть помещений не читается",
+                        "readability_score": gpt_result.get("readability_score"),
+                        "rejection_reason": gpt_result.get("rejection_reason")
+                    })
             gpt_result["rooms"] = generate_camera_points(base_64_image, gpt_result.get("rooms", []))
-            effective_total = total_area_param
             gpt_result = calculate_math(gpt_result, effective_total)
             gpt_result["plan_description"] = build_plan_description(gpt_result)
 
